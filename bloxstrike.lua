@@ -20,12 +20,11 @@ return function(Context)
 		if Local.Player and Local.Player.Character then
 			chars[#chars + 1] = Local.Player.Character
 		end
-		for _, player in Players:GetPlayers() do
-			if player ~= Local.Player then
-				local c = player.Character
-				if c then
-					chars[#chars + 1] = c
-				end
+		for _, team in ipairs({"Terrorists", "Counter-Terrorists"}) do
+			local folder : Folder = game:GetService("Workspace"):FindFirstChild("Characters"):FindFirstChild(team)
+			for _, char in folder:GetChildren() do
+				if char.Name == Local.Player.Name then continue end
+				table.insert(chars, char)
 			end
 		end
 		return chars
