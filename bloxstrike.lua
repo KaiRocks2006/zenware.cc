@@ -17,7 +17,13 @@ return function(Context)
 
 	local function GetAliveCharacters()
 		local chars = {}
+		if Local.Player and Local.Player.Character then
+			chars[#chars + 1] = Local.Player.Character
+		end
 		for _, player in Players:GetPlayers() do
+			if player == Local.Player then
+				continue
+			end
 			local c = player.Character
 			if c then
 				chars[#chars + 1] = c
@@ -113,6 +119,8 @@ return function(Context)
 		end
 	end
 
+	local DiagnosticTick = 0
+
 	Context.Library.signals[#Context.Library.signals + 1] = RunService.RenderStepped:Connect(function()
 		PurgeDead()
 
@@ -126,10 +134,16 @@ return function(Context)
 		local boxColor = Fields.Esp.BoxesColor:Get()
 		local tracerColor = Fields.Esp.TracersColor:Get()
 		local c = Local.Camera()
+		if not c then
+			return
+		end
+
 		local mid = c.ViewportSize.X / 2
 		local bot = c.ViewportSize.Y
 
-		for _, character in ipairs(GetAliveCharacters()) do
+		local characters = GetAliveCharacters()
+
+		for _, character in ipairs(characters) do
 			local hum, rp, head = GetParts(character)
 			if not hum then
 				if Drawings[character] then
@@ -159,6 +173,16 @@ return function(Context)
 				DrawBox(set, character, hum, rp, head, boxColor)
 			else
 				set.Box.Visible = false
+			end
+		end
+
+		DiagnosticTick = DiagnosticTick + 1
+		if DiagnosticTick % 120 == 0 then
+			warn("zenware bloxstrike: " .. #Players:GetPlayers() .. " players, " .. #characters .. " chars")
+			for _, character in ipairs(characters) do
+				local hum, rp, head = GetParts(character)
+				local pos, onScreen = c and c:WorldToViewportPoint(rp and rp.Position or Vector3.new()) or false, false
+				warn("  " .. character.Name .. " hum=" .. tostring(hum ~= nil) .. " rp=" .. tostring(rp ~= nil) .. " head=" .. tostring(head ~= nil) .. " onscreen=" .. tostring(onScreen))
 			end
 		end
 	end)
