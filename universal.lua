@@ -105,62 +105,58 @@ return function(Context)
 		set.Tracer.Visible = true
 	end
 
-	-- Hook cleanup into library unload
 	local prev = Context.Library.UnloadCallback
 	Context.Library.UnloadCallback = function(...)
 		DestroyAll()
-		if prev then
-			prev(...)
-		end
+		if prev then prev(...) end
 	end
 
 	Context.Library.signals[#Context.Library.signals + 1] = RunService.RenderStepped:Connect(function()
-		PurgeDead()
+		local ok, err = pcall(function()
+			PurgeDead()
 
-		if not Values.Esp.GlobalEnabled then
-			for _, set in pairs(Drawings) do
-				HideSet(set)
+			if not Values.Esp.GlobalEnabled then
+				for _, set in pairs(Drawings) do HideSet(set) end
+				return
 			end
-			return
-		end
 
-		local boxColor = Fields.Esp.BoxesColor:Get()
-		local tracerColor = Fields.Esp.TracersColor:Get()
-		local c = Local.Camera()
-		local mid = c.ViewportSize.X / 2
-		local bot = c.ViewportSize.Y
+			local c = Local.Camera()
+			if not c then return end
 
-		for _, character in ipairs(GetAliveCharacters()) do
-			local hum, rp, head = GetParts(character)
-			if not hum then
-				if Drawings[character] then
-					HideSet(Drawings[character])
+			local mid = c.ViewportSize.X / 2
+			local bot = c.ViewportSize.Y
+			local boxColor = Fields.Esp.BoxesColor:Get()
+			local tracerColor = Fields.Esp.TracersColor:Get()
+
+			for _, character in ipairs(GetAliveCharacters()) do
+				local hum, rp, head = GetParts(character)
+				if not hum then
+					if Drawings[character] then HideSet(Drawings[character]) end
+				else
+					local pos, onScreen = c:WorldToViewportPoint(rp.Position)
+					if not onScreen then
+						if Drawings[character] then HideSet(Drawings[character]) end
+					else
+						local set = GetSet(character)
+						set.Tracer.To = Vector2.new(pos.X, pos.Y)
+
+						if Values.Esp.TracersEnabled then
+							DrawTracer(set, Vector2.new(mid, bot), tracerColor)
+						else
+							set.Tracer.Visible = false
+						end
+
+						if Values.Esp.BoxesEnabled then
+							DrawBox(set, character, hum, rp, head, boxColor)
+						else
+							set.Box.Visible = false
+						end
+					end
 				end
-				continue
 			end
-
-			local pos, onScreen = c:WorldToViewportPoint(rp.Position)
-			if not onScreen then
-				if Drawings[character] then
-					HideSet(Drawings[character])
-				end
-				continue
-			end
-
-			local set = GetSet(character)
-			set.Tracer.To = Vector2.new(pos.X, pos.Y)
-
-			if Values.Esp.TracersEnabled then
-				DrawTracer(set, Vector2.new(mid, bot), tracerColor)
-			else
-				set.Tracer.Visible = false
-			end
-
-			if Values.Esp.BoxesEnabled then
-				DrawBox(set, character, hum, rp, head, boxColor)
-			else
-				set.Box.Visible = false
-			end
+		end)
+		if not ok then
+			warn("zenware universal error: " .. tostring(err))
 		end
 	end)
 end

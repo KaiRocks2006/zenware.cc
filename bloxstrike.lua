@@ -21,12 +21,11 @@ return function(Context)
 			chars[#chars + 1] = Local.Player.Character
 		end
 		for _, player in Players:GetPlayers() do
-			if player == Local.Player then
-				continue
-			end
-			local c = player.Character
-			if c then
-				chars[#chars + 1] = c
+			if player ~= Local.Player then
+				local c = player.Character
+				if c then
+					chars[#chars + 1] = c
+				end
 			end
 		end
 		return chars
@@ -122,68 +121,66 @@ return function(Context)
 	local DiagnosticTick = 0
 
 	Context.Library.signals[#Context.Library.signals + 1] = RunService.RenderStepped:Connect(function()
-		PurgeDead()
+		local ok, err = pcall(function()
+			PurgeDead()
 
-		if not Values.Esp.GlobalEnabled then
-			for _, set in pairs(Drawings) do
-				HideSet(set)
-			end
-			return
-		end
-
-		local boxColor = Fields.Esp.BoxesColor:Get()
-		local tracerColor = Fields.Esp.TracersColor:Get()
-		local c = Local.Camera()
-		if not c then
-			return
-		end
-
-		local mid = c.ViewportSize.X / 2
-		local bot = c.ViewportSize.Y
-
-		local characters = GetAliveCharacters()
-
-		for _, character in ipairs(characters) do
-			local hum, rp, head = GetParts(character)
-			if not hum then
-				if Drawings[character] then
-					HideSet(Drawings[character])
+			if not Values.Esp.GlobalEnabled then
+				for _, set in pairs(Drawings) do
+					HideSet(set)
 				end
-				continue
+				return
 			end
 
-			local pos, onScreen = c:WorldToViewportPoint(rp.Position)
-			if not onScreen then
-				if Drawings[character] then
-					HideSet(Drawings[character])
-				end
-				continue
-			end
+			local c = Local.Camera()
+			if not c then return end
 
-			local set = GetSet(character)
-			set.Tracer.To = Vector2.new(pos.X, pos.Y)
+			local mid = c.ViewportSize.X / 2
+			local bot = c.ViewportSize.Y
 
-			if Values.Esp.TracersEnabled then
-				DrawTracer(set, Vector2.new(mid, bot), tracerColor)
-			else
-				set.Tracer.Visible = false
-			end
+			local boxColor = Fields.Esp.BoxesColor:Get()
+			local tracerColor = Fields.Esp.TracersColor:Get()
 
-			if Values.Esp.BoxesEnabled then
-				DrawBox(set, character, hum, rp, head, boxColor)
-			else
-				set.Box.Visible = false
-			end
-		end
+			local characters = GetAliveCharacters()
 
-		DiagnosticTick = DiagnosticTick + 1
-		if DiagnosticTick % 120 == 0 then
-			warn("zenware bloxstrike: " .. #Players:GetPlayers() .. " players, " .. #characters .. " chars")
 			for _, character in ipairs(characters) do
 				local hum, rp, head = GetParts(character)
-				local pos, onScreen = c and c:WorldToViewportPoint(rp and rp.Position or Vector3.new()) or false, false
-				warn("  " .. character.Name .. " hum=" .. tostring(hum ~= nil) .. " rp=" .. tostring(rp ~= nil) .. " head=" .. tostring(head ~= nil) .. " onscreen=" .. tostring(onScreen))
+				if not hum then
+					if Drawings[character] then HideSet(Drawings[character]) end
+				else
+					local pos, onScreen = c:WorldToViewportPoint(rp.Position)
+					if not onScreen then
+						if Drawings[character] then HideSet(Drawings[character]) end
+					else
+						local set = GetSet(character)
+						set.Tracer.To = Vector2.new(pos.X, pos.Y)
+
+						if Values.Esp.TracersEnabled then
+							DrawTracer(set, Vector2.new(mid, bot), tracerColor)
+						else
+							set.Tracer.Visible = false
+						end
+
+						if Values.Esp.BoxesEnabled then
+							DrawBox(set, character, hum, rp, head, boxColor)
+						else
+							set.Box.Visible = false
+						end
+					end
+				end
 			end
+
+			DiagnosticTick = DiagnosticTick + 1
+			if DiagnosticTick % 120 == 0 then
+				warn("zenware bloxstrike: " .. #Players:GetPlayers() .. " players, " .. #characters .. " chars")
+				for _, character in ipairs(characters) do
+					local hum, rp, head = GetParts(character)
+					warn("  " .. character.Name .. " hum=" .. tostring(hum ~= nil) .. " rp=" .. tostring(rp ~= nil) .. " head=" .. tostring(head ~= nil))
+				end
+			end
+		end)
+		if not ok then
+			warn("zenware bloxstrike RenderStepped error: " .. tostring(err))
+			warn(debug.traceback())
 		end
 	end)
 end
