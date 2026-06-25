@@ -37,11 +37,7 @@ local Context = {
 
 local BaseUrl = "https://raw.githubusercontent.com/KaiRocks2006/zenware.cc/refs/heads/main/"
 local DetectedGame = ""
-if PlaceIds[game.PlaceId] ~= nil then
-    DetectedGame = PlaceIds[game.PlaceId]
-else
-    DetectedGame = "Universal"
-end
+DetectedGame = PlaceIds[game.PlaceId] or "universal"
 
 local Module = loadstring(game:HttpGet(BaseUrl .. DetectedGame .. ".lua"))()
 Module.Start(Context)
