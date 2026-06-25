@@ -50,6 +50,9 @@ function this.Start(Context)
 	this.Library = Context.Library
 	this.Window = Context.Window
 	this.Initialize()
+    this.LogicThread = task.spawn(this.Logic)
+    this.RenderThread = game:GetService("RunService").RenderStepped:Connect(this.Render)
+    this.Library.UnloadCallback = this.Shutdown
 end
 
 function this.Initialize()
@@ -99,28 +102,35 @@ local EXTRACTION_NAMES = {
 }
 
 function this.Logic()
-	if not this.Interactables then return end
-
-	for _, Interactable in this.Interactables:GetChildren() do
-		-- Fixed operator precedence: wrap the name check in parentheses
-		if EXTRACTION_NAMES[Interactable.Name] and this.Vars.ESP.Extraction.ExtractionPoints[Interactable] == nil then
-			local hl = Instance.new("Highlight")
-			hl.Adornee           = Interactable
-			hl.FillColor         = this.Vars.ESP.Extraction.Color
-			hl.FillTransparency  = 0.75
-			hl.OutlineColor      = this.Vars.ESP.Extraction.Color
-			hl.OutlineTransparency = 0
-			hl.DepthMode         = Enum.HighlightDepthMode.AlwaysOnTop
-			hl.Name              = "ExtractHL"
-			-- Respect current toggle state when creating
-			hl.Enabled           = this.Vars.ESP.Extraction.Enabled
-			hl.Parent            = Interactable
-			this.Vars.ESP.Extraction.ExtractionPoints[Interactable] = hl
-		end
-	end
+    if not this.Interactables then return end
+    while task.wait(0.001) do
+        for _, Interactable in this.Interactables:GetChildren() do
+            if EXTRACTION_NAMES[Interactable.Name] and this.Vars.ESP.Extraction.ExtractionPoints[Interactable] == nil then
+                local hl = Instance.new("Highlight")
+                hl.Adornee             = Interactable
+                hl.FillColor           = this.Vars.ESP.Extraction.Color
+                hl.FillTransparency    = 0.75
+                hl.OutlineColor        = this.Vars.ESP.Extraction.Color
+                hl.OutlineTransparency = 0
+                hl.DepthMode           = Enum.HighlightDepthMode.AlwaysOnTop
+                hl.Name                = "ExtractHL"
+                hl.Enabled             = this.Vars.ESP.Extraction.Enabled
+                hl.Parent              = Interactable
+                this.Vars.ESP.Extraction.ExtractionPoints[Interactable] = hl
+            end
+        end
+    end
 end
 
-function this.Render()
+function this.Render(dt)
+end
+
+function this.Shutdown()
+    this.RenderThread:Disconnect()
+    task.cancel(this.LogicThread)
+    for _, hl in pairs(this.Vars.ESP.Extraction.ExtractionPoints) do
+        hl:Destroy()
+    end
 end
 
 return this
