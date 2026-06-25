@@ -5,8 +5,6 @@ local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 
-local IsBloxStrike = game.PlaceId == 114234929420007
-
 local PlaceIds = {
     [114234929420007] = "BloxStrike",
     [13253735473] = "TridentSurvival",
