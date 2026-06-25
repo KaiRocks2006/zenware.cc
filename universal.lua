@@ -124,14 +124,14 @@ local function GetBox(UserId)
 	end
 end
 
-local function NewText(UserId, Text, Size, Position, Color, Center)
+local function NewText(UserId, LabelName, Text, Size, Position, Color, Center)
 	local t = Drawing.new("Text")
 	t.Text = Text
 	t.Size = Size
 	t.Position = Position
 	t.Color = Color
 	t.Center = Center or false
-	table.insert(this.Drawings[UserId].Texts, t)
+	this.Drawings[UserId].Texts[LabelName] = t
 	return t
 end
 
@@ -150,10 +150,19 @@ local function HandleEsp()
 		if s.Character == nil or id == this.Services.Players.LocalPlayer.UserId then continue end
 		local HumanoidRootPart = s.Character:FindFirstChild("HumanoidRootPart")
 		if HumanoidRootPart == nil then continue end
-		local box = GetBox(id)
 		local pos, onscreen = this.Services.Workspace.CurrentCamera:WorldToViewportPoint(HumanoidRootPart.Position)
 		if onscreen then
-			NewText(id, s.Character.Name, 12, Vector2.new(pos.X, pos.Y), Color3.new(1, 1, 1), true)
+			local NameLabel = this.Drawings[id].Texts.Name
+			if NameLabel then
+				NameLabel.Text = s.Character.Name
+				NameLabel.Size = 12
+				NameLabel.Color = Color3.new(1, 1, 1)
+				NameLabel.Center = true
+				NameLabel.Visible = true
+				NameLabel.Position = Vector2.new(pos.X, pos.Y)
+			else
+				NewText(id, "Name", s.Character.Name, 12, Vector2.new(pos.X, pos.Y), Color3.new(1, 1, 1), true)
+			end
 		end
 	end
 end
@@ -201,11 +210,11 @@ function this.CleanDrawings()
 	for id, _ in pairs(this.PlayerList) do
 		if this.Drawings[id] then
 			for _, d in this.Drawings[id].Lines do
-				d:Remove()
+				d.Visible = false
 			end
 			table.clear(this.Drawings[id].Lines)
 			for _, d in this.Drawings[id].Texts do
-				d:Remove()
+				d.Visible = false
 			end
 			table.clear(this.Drawings[id].Texts)
 		end
