@@ -80,5 +80,12 @@ local GameScripts = {
 }
 
 local scriptName = GameScripts[game.PlaceId] or "universal"
-local loader = loadstring(game:HttpGet(BaseURL .. "loader.lua"))()
-loader(BaseURL, scriptName, Context)
+
+local loadOk, loader = pcall(function()
+    return loadstring(game:HttpGet(BaseURL .. "loader.lua"))()
+end)
+if not loadOk then
+    warn("zenware: failed to load loader.lua — " .. tostring(loader))
+else
+    loader(BaseURL, scriptName, Context)
+end
