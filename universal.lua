@@ -61,6 +61,11 @@ function this.Start(context)
 	this.InitTabs(this.Window)
 	this.Library.UnloadCallback = this.Shutdown
 	this.StartThreads()
+	game:GetService("StarterGui"):SetCore("SendNotification", {
+		Title = "zenware.cc",
+		Text = "Loaded Universal",
+		Duration = 5
+	})
 end
 
 function this.InitTabs(w)
