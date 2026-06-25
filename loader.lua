@@ -29,6 +29,7 @@ local Window = Library:CreateWindow({
 
 local Context = {
     ["Window"] = Window,
+    ["Library"] = Library,
     ["Players"] = Players,
     ["Workspace"] = Workspace,
     ["RunService"] = RunService,
