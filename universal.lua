@@ -76,12 +76,11 @@ return function(Context)
 		Drawings = {}
 	end
 
-	local function DrawBox(set, character, humanoid, rootpart, head, color)
+	local function DrawBox(box, c, hum, rp, head, color)
 		local headUp = head.CFrame.UpVector
 		local headTop = head.Position + headUp * (head.Size.Y * 0.5)
-		local rootUp = rootpart.CFrame.UpVector
-		local footPos = rootpart.Position - rootUp * (rootpart.Size.Y * 0.5 + humanoid.HipHeight)
-		local c = Local.Camera()
+		local rootUp = rp.CFrame.UpVector
+		local footPos = rp.Position - rootUp * (rp.Size.Y * 0.5 + hum.HipHeight)
 
 		local top = c:WorldToViewportPoint(headTop)
 		local bottom = c:WorldToViewportPoint(footPos)
@@ -90,13 +89,13 @@ return function(Context)
 		local cx = (top.X + bottom.X) / 2
 		local cy = (top.Y + bottom.Y) / 2
 
-		set.Box.Thickness = 1
-		set.Box.Filled = false
-		set.Box.Transparency = 1
-		set.Box.Position = Vector2.new(cx - width / 2, cy - height / 2)
-		set.Box.Size = Vector2.new(width, height)
-		set.Box.Color = color
-		set.Box.Visible = true
+		box.Thickness = 1
+		box.Filled = false
+		box.Transparency = 1
+		box.Position = Vector2.new(cx - width / 2, cy - height / 2)
+		box.Size = Vector2.new(width, height)
+		box.Color = color
+		box.Visible = true
 	end
 
 	local function DrawTracer(set, origin, color)
@@ -147,7 +146,7 @@ return function(Context)
 						end
 
 						if Values.Esp.BoxesEnabled then
-							DrawBox(set, character, hum, rp, head, boxColor)
+							DrawBox(set.Box, c, hum, rp, head, boxColor)
 						else
 							set.Box.Visible = false
 						end
