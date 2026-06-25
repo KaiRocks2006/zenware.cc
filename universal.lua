@@ -36,6 +36,10 @@ this.Drawings = {}
 this._RenderThread = nil
 this._LogicThread = nil
 
+-- Cached values to avoid repeated lookups in the render loop
+local _localId = nil
+local _camera = nil
+
 function this.Start(context)
 	this.Window = context.Window
 	this.Library = context.Library
@@ -45,6 +49,14 @@ function this.Start(context)
 		RunService = context.RunService,
 		HttpService = context.HttpService,
 	}
+
+	_localId = this.Services.Players.LocalPlayer.UserId
+	_camera = this.Services.Workspace.CurrentCamera
+
+	-- Keep camera reference up to date if it changes
+	this.Services.Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+		_camera = this.Services.Workspace.CurrentCamera
+	end)
 
 	this.InitTabs(this.Window)
 	this.Library.UnloadCallback = this.Shutdown
@@ -102,6 +114,8 @@ end
 	PlayerList = {
 		[UserId] = {
 			Character (Model | nil),
+			CharacterName (string | nil), -- cached to avoid indexing every frame
+			HumanoidRootPart (BasePart | nil), -- cached to avoid FindFirstChild every frame
 			CharacterAdded (Connection),
 			CharacterRemoving (Connection)
 		}
@@ -150,22 +164,14 @@ local function SetDrawingsVisible(UserId, visible)
 end
 
 local function HandleEsp()
-	local localId = this.Services.Players.LocalPlayer.UserId
-	local camera = this.Services.Workspace.CurrentCamera
-
 	for id, s in pairs(this.PlayerList) do
-		if id == localId or s.Character == nil then
+		-- Skip local player and players without a character or root part
+		if id == _localId or s.HumanoidRootPart == nil then
 			SetDrawingsVisible(id, false)
 			continue
 		end
 
-		local HumanoidRootPart = s.Character:FindFirstChild("HumanoidRootPart")
-		if HumanoidRootPart == nil then
-			SetDrawingsVisible(id, false)
-			continue
-		end
-
-		local pos, onscreen = camera:WorldToViewportPoint(HumanoidRootPart.Position)
+		local pos, onscreen = _camera:WorldToViewportPoint(s.HumanoidRootPart.Position)
 		if not onscreen then
 			SetDrawingsVisible(id, false)
 			continue
@@ -178,8 +184,9 @@ local function HandleEsp()
 		if nameLabel.Position ~= newPos then
 			nameLabel.Position = newPos
 		end
-		if nameLabel.Text ~= s.Character.Name then
-			nameLabel.Text = s.Character.Name
+		-- Use cached name to avoid indexing Character every frame
+		if nameLabel.Text ~= s.CharacterName then
+			nameLabel.Text = s.CharacterName
 		end
 		if not nameLabel.Visible then
 			nameLabel.Visible = true
@@ -187,17 +194,41 @@ local function HandleEsp()
 	end
 end
 
+local function OnCharacterAdded(player, PlayerStruct, Character)
+	PlayerStruct.Character = Character
+	PlayerStruct.CharacterName = Character.Name
+	-- Wait for HumanoidRootPart to exist, then cache it
+	local hrp = Character:FindFirstChild("HumanoidRootPart")
+		or Character:WaitForChild("HumanoidRootPart", 10)
+	PlayerStruct.HumanoidRootPart = hrp
+end
+
+local function OnCharacterRemoving(PlayerStruct)
+	PlayerStruct.Character = nil
+	PlayerStruct.CharacterName = nil
+	PlayerStruct.HumanoidRootPart = nil
+end
+
 function this.PopulatePlayer(player)
 	local PlayerStruct = {}
-	PlayerStruct["Character"] = player.Character
+	PlayerStruct.Character = nil
+	PlayerStruct.CharacterName = nil
+	PlayerStruct.HumanoidRootPart = nil
+
 	local c = player.CharacterAdded:Connect(function(Character)
-		PlayerStruct["Character"] = Character
+		OnCharacterAdded(player, PlayerStruct, Character)
 	end)
 	local uc = player.CharacterRemoving:Connect(function()
-		PlayerStruct["Character"] = nil
+		OnCharacterRemoving(PlayerStruct)
 	end)
-	PlayerStruct["CharacterAdded"] = c
-	PlayerStruct["CharacterRemoving"] = uc
+	PlayerStruct.CharacterAdded = c
+	PlayerStruct.CharacterRemoving = uc
+
+	-- Handle already-spawned character
+	if player.Character then
+		task.spawn(OnCharacterAdded, player, PlayerStruct, player.Character)
+	end
+
 	this.Drawings[player.UserId] = {
 		Box = nil,
 		Lines = {},
