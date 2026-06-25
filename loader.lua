@@ -1,20 +1,47 @@
-return function(baseURL, scriptName, context)
-	local url = baseURL .. scriptName .. ".lua"
+local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/Stratxgy/PepsiUI/refs/heads/main/pepsi.lua'))()
 
-	local ok, result = pcall(function()
-		return game:HttpGet(url)
-	end)
-	if not ok then
-		return warn("zenware: failed to fetch " .. scriptName .. ".lua — " .. tostring(result))
-	end
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
 
-	local fn, err = loadstring(result)
-	if not fn then
-		return warn("zenware: failed to compile " .. scriptName .. ".lua — " .. tostring(err))
-	end
+local IsBloxStrike = game.PlaceId == 114234929420007
 
-	local success, runtimeErr = pcall(fn, context)
-	if not success then
-		warn("zenware: " .. scriptName .. ".lua error — " .. tostring(runtimeErr))
-	end
+local PlaceIds = {
+    [114234929420007] = "BloxStrike",
+    [13253735473] = "TridentSurvival",
+    [112757576021097] = "DefuseDevision",
+    [7336302630] = "ProjectDelta",
+    [115209351507608] = "TheArmory"
+}
+
+local Window = Library:CreateWindow({
+    Name = "zenware.cc",
+    Themeable = {
+        Name = "Settings",
+        Image = "nil",
+        Info = "Script by zenware team",
+        Credit = false
+    },
+    Background = "",
+    Theme = [[{"__Designer.Background.UseBackgroundImage":false}]]
+})
+
+local Context = {
+    ["Window"] = Window,
+    ["Players"] = Players,
+    ["Workspace"] = Workspace,
+    ["RunService"] = RunService,
+    ["HttpService"] = HttpService,
+}
+
+local BaseUrl = "https://raw.githubusercontent.com/KaiRocks2006/zenware.cc/refs/heads/main/"
+local DetectedGame = ""
+if PlaceIds[game.PlaceId] ~= nil then
+    DetectedGame = PlaceIds[game.PlaceId]
+else
+    DetectedGame = "Universal"
 end
+
+local Module = loadstring(game:HttpGet(BaseUrl .. DetectedGame .. ".lua"))()
+Module.Start(Context)

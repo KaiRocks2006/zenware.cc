@@ -1,161 +1,154 @@
-return function(Context)
-	local Players = Context.Players
-	local Workspace = Context.Workspace
-	local RunService = Context.RunService
-	local Fields = Context.Fields
-	local Values = Context.Values
-	local Drawing = Drawing
+local this = {}
 
-	local Local = {
-		Player = Players.LocalPlayer,
-		Camera = function()
-			return Workspace.CurrentCamera
-		end,
+--[[
+
+	Reference Context:
+	Context = {
+		["Window"] = Window, -- PepsiLib Window
+		["Players"] = Players,
+		["Workspace"] = Workspace,
+		["RunService"] = RunService,
+		["HttpService"] = HttpService,
 	}
 
-	local Drawings = {}
+]]--
 
-	local function GetAliveCharacters()
-		local chars = {}
-		for _, player in Players:GetPlayers() do
-			local c = player.Character
-			if c then
-				chars[#chars + 1] = c
-			end
-		end
-		return chars
-	end
+this.Window = nil
+this.Tabs = {}
+this.Services = {}
+this.Variables = {}
 
-	local function GetParts(character)
-		local hum = character:FindFirstChild("Humanoid")
-		local rp = character:FindFirstChild("HumanoidRootPart")
-		local head = character:FindFirstChild("Head") or character:FindFirstChild("UpperTorso")
-		if hum and rp and head then
-			return hum, rp, head
-		end
-	end
-
-	local function GetSet(character)
-		local set = Drawings[character]
-		if set then
-			return set
-		end
-		set = {
-			Tracer = Drawing.new("Line"),
-			Box = Drawing.new("Square"),
+--[[
+	{
+		[UserId] = {
+			Box (Drawing Object),
+			Lines { (Drawing Object) },
+			Texts { (Drawing Object) },
 		}
-		Drawings[character] = set
-		return set
-	end
+	}
+]]--
+this.Drawings = {
+	
+}
 
-	local function HideSet(set)
-		for _, d in pairs(set) do
-			d.Visible = false
+this._RenderThread = nil
+this._LogicThread = nil
+
+function this.Start(context)
+	this.Window = context.Window
+	this.Services = {
+		Players = context.Players,
+		Workspace = context.Workspace,
+		RunService = context.RunService,
+		HttpService = context.HttpService,
+	}
+	this.InitTabs(this.Window)
+end
+
+function this.InitTabs(w)
+	this.Tabs = {
+		Aim = {
+			Tab = w:CreateTab({ Name = "Aim" }),
+			Sections = {}
+		},
+		Visuals = {
+			Tab = w:CreateTab({ Name = "Visuals" }),
+			Sections = {}
+		},
+		Exploits = {
+			Tab = w:CreateTab({ Name = "Exploits" }),
+			Sections = {}
+		},
+		World = {
+			Tab = w:CreateTab({ Name = "World" }),
+			Sections = {}
+		},
+	}
+	this.InitSections(this.Tabs)
+end
+
+function this.InitSections(t)
+	t.Aim.Sections["Toggles"] = t.Aim.Tab:CreateSection({ Name = "Toggles", Side = "Left" })
+	t.Aim.Sections["Prediction"] = t.Aim.Tab:CreateSection({ Name = "Prediction", Side = "Right" })
+	t.Aim.Sections["Precision"] = t.Aim.Tab:CreateSection({ Name = "Precision", Side = "Right" })
+	this.InitFields(t)
+end
+
+function this.InitFields(t)
+	-- Initialize elements of sections
+	this.StartThreads()
+end
+
+--[[
+	PlayerList is a table with the following format:
+
+	PlayerList = {
+		[UserId] = {
+			Character (Model | nil),
+			CharacterAdded (Connection), -- If these are ever nil while the UserId is populated, we have a serious issue
+			CharacterRemoving (Connection)
+		}
+	}
+]]--
+this.PlayerList = {}
+
+this.PlayerConnected = nil
+this.PlayerRemoving = nil
+
+function this.PopulatePlayer(player)
+	local PlayerStruct = {}
+	PlayerStruct["Character"] = player.Character
+	local c = player.CharacterAdded:Connect(function(Character)
+		PlayerStruct["Character"] = Character
+	end)
+	local uc = player.CharacterRemoving:Connect(function(Character)
+		PlayerStruct["Character"] = nil
+	end)
+	PlayerStruct["CharacterAdded"] = c
+	PlayerStruct["CharacterRemoving"] = uc
+	this.PlayerList[player.UserId] = PlayerStruct
+end
+
+function this.CleanupPlayer(player)
+	if this.Drawings[player.UserId] then
+		this.Drawings[player.UserId].Box:Remove()
+		for _, d in this.Drawings[player.UserId].Lines do
+			d:Remove()
 		end
-	end
-
-	local function PurgeDead()
-		for char, set in pairs(Drawings) do
-			if not char.Parent then
-				for _, d in pairs(set) do
-					d:Remove()
-				end
-				Drawings[char] = nil
-			end
+		for _, d in this.Drawings[player.UserId].Texts do
+			d:Remove()
 		end
+		this.Drawings[player.UserId] = nil
 	end
+	this.PlayerList[player.UserId].CharacterAdded:Disconnect()
+	this.PlayerList[player.UserId].CharacterRemoving:Disconnect()
+end
 
-	local function DestroyAll()
-		for _, set in pairs(Drawings) do
-			for _, d in pairs(set) do
-				pcall(function()
-					d:Remove()
-				end)
-			end
-		end
-		Drawings = {}
+function this.StartThreads()
+	for _, player in this.Services.Players:GetPlayers() do
+		this.PopulatePlayer(player)
 	end
+	this.PlayerConnected = this.Services.Players.PlayerAdded:Connect(this.PopulatePlayer)
+	this.PlayerRemoving = this.Services.Players.PlayerRemoving:Connect(this.CleanupPlayer)
 
-	local function DrawBox(box, c, hum, rp, head, color)
-		local headUp = head.CFrame.UpVector
-		local headTop = head.Position + headUp * (head.Size.Y * 0.5)
-		local rootUp = rp.CFrame.UpVector
-		local footPos = rp.Position - rootUp * (rp.Size.Y * 0.5 + hum.HipHeight)
+	-- For rendering
+	this._RenderThread = this.Services.RunService.RenderStepped:Connect(function(dt)
 
-		local top = c:WorldToViewportPoint(headTop)
-		local bottom = c:WorldToViewportPoint(footPos)
-		local height = math.abs(bottom.Y - top.Y)
-		local width = height * 0.55
-		local cx = (top.X + bottom.X) / 2
-		local cy = (top.Y + bottom.Y) / 2
+	end)
 
-		box.Thickness = 1
-		box.Filled = false
-		box.Transparency = 1
-		box.Position = Vector2.new(cx - width / 2, cy - height / 2)
-		box.Size = Vector2.new(width, height)
-		box.Color = color
-		box.Visible = true
-	end
+	-- For handling main logic
+	this._LogicThread = task.spawn(function()
 
-	local function DrawTracer(set, origin, color)
-		set.Tracer.From = origin
-		set.Tracer.Color = color
-		set.Tracer.Visible = true
-	end
-
-	local prev = Context.Library.UnloadCallback
-	Context.Library.UnloadCallback = function(...)
-		DestroyAll()
-		if prev then prev(...) end
-	end
-
-	Context.Library.signals[#Context.Library.signals + 1] = RunService.RenderStepped:Connect(function()
-		local ok, err = pcall(function()
-			PurgeDead()
-
-			if not Values.Esp.GlobalEnabled then
-				for _, set in pairs(Drawings) do HideSet(set) end
-				return
-			end
-
-			local c = Local.Camera()
-			if not c then return end
-
-			local mid = c.ViewportSize.X / 2
-			local bot = c.ViewportSize.Y
-			local boxColor = Fields.Esp.BoxesColor:Get()
-			local tracerColor = Fields.Esp.TracersColor:Get()
-
-			for _, character in ipairs(GetAliveCharacters()) do
-				local hum, rp, head = GetParts(character)
-				if not hum then
-					if Drawings[character] then HideSet(Drawings[character]) end
-				else
-					local pos, onScreen = c:WorldToViewportPoint(rp.Position)
-					if not onScreen then
-						if Drawings[character] then HideSet(Drawings[character]) end
-					else
-						local set = GetSet(character)
-						set.Tracer.To = Vector2.new(pos.X, pos.Y)
-
-						if Values.Esp.TracersEnabled then
-							DrawTracer(set, Vector2.new(mid, bot), tracerColor)
-						else
-							set.Tracer.Visible = false
-						end
-
-						if Values.Esp.BoxesEnabled then
-							DrawBox(set.Box, c, hum, rp, head, boxColor)
-						else
-							set.Box.Visible = false
-						end
-					end
-				end
-			end
-		end)
-		if not ok then
-			warn("zenware universal error: " .. tostring(err))
-		end
 	end)
 end
+
+function this.Shutdown()
+	for userId, _ in this.PlayerList do
+		this.PlayerList[userId].CharacterAdded:Disconnect()
+		this.PlayerList[userId].CharacterRemoving:Disconnect()
+  	end
+	this.PlayerConnected:Disconnect()
+	this.PlayerRemoving:Disconnect()
+end
+
+return this
