@@ -19,26 +19,42 @@ this.Library = nil
 this.Tabs = {}
 this.Services = {}
 this.Variables = {
-	ESPMasterToggle = false
+	ESPMasterToggle = false,
+	SkeletonToggle = false,
 }
 
---[[
-	{
-		[UserId] = {
-			Box (Drawing Object),
-			Lines { (Drawing Object) },
-			Texts { (Drawing Object) },
-		}
-	}
-]]--
 this.Drawings = {}
-
 this._RenderThread = nil
 this._LogicThread = nil
 
--- Cached values to avoid repeated lookups in the render loop
 local _localId = nil
 local _camera = nil
+
+-- Bone definitions per rig type
+local R6_BONES = {
+	{ "Head",        "Torso"        },
+	{ "Torso",       "Left Arm"     },
+	{ "Torso",       "Right Arm"    },
+	{ "Torso",       "Left Leg"     },
+	{ "Torso",       "Right Leg"    },
+}
+
+local R15_BONES = {
+	{ "Head",           "UpperTorso"    },
+	{ "UpperTorso",     "LowerTorso"    },
+	{ "UpperTorso",     "LeftUpperArm"  },
+	{ "LeftUpperArm",   "LeftLowerArm"  },
+	{ "LeftLowerArm",   "LeftHand"      },
+	{ "UpperTorso",     "RightUpperArm" },
+	{ "RightUpperArm",  "RightLowerArm" },
+	{ "RightLowerArm",  "RightHand"     },
+	{ "LowerTorso",     "LeftUpperLeg"  },
+	{ "LeftUpperLeg",   "LeftLowerLeg"  },
+	{ "LeftLowerLeg",   "LeftFoot"      },
+	{ "LowerTorso",     "RightUpperLeg" },
+	{ "RightUpperLeg",  "RightLowerLeg" },
+	{ "RightLowerLeg",  "RightFoot"     },
+}
 
 function this.Start(context)
 	this.Window = context.Window
@@ -53,7 +69,6 @@ function this.Start(context)
 	_localId = this.Services.Players.LocalPlayer.UserId
 	_camera = this.Services.Workspace.CurrentCamera
 
-	-- Keep camera reference up to date if it changes
 	this.Services.Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 		_camera = this.Services.Workspace.CurrentCamera
 	end)
@@ -61,6 +76,7 @@ function this.Start(context)
 	this.InitTabs(this.Window)
 	this.Library.UnloadCallback = this.Shutdown
 	this.StartThreads()
+
 	game:GetService("StarterGui"):SetCore("SendNotification", {
 		Title = "zenware.cc",
 		Text = "Loaded Universal",
@@ -93,12 +109,10 @@ function this.InitTabs(w)
 end
 
 function this.InitSections(t)
-	-- Aim
-	t.Aim.Sections["Toggles"] = t.Aim.Tab:CreateSection({ Name = "Toggles", Side = "Left" })
+	t.Aim.Sections["Toggles"]    = t.Aim.Tab:CreateSection({ Name = "Toggles",    Side = "Left"  })
 	t.Aim.Sections["Prediction"] = t.Aim.Tab:CreateSection({ Name = "Prediction", Side = "Right" })
-	t.Aim.Sections["Precision"] = t.Aim.Tab:CreateSection({ Name = "Precision", Side = "Right" })
+	t.Aim.Sections["Precision"]  = t.Aim.Tab:CreateSection({ Name = "Precision",  Side = "Right" })
 
-	-- Visuals
 	t.Visuals.Sections["Toggles"] = t.Visuals.Tab:CreateSection({ Name = "Toggles", Side = "Left" })
 
 	this.InitFields(t)
@@ -111,16 +125,22 @@ function this.InitFields(t)
 			this.Variables.ESPMasterToggle = v
 		end
 	})
+	t.Visuals.Fields["SkeletonToggle"] = t.Visuals.Sections.Toggles:AddToggle({
+		Name = "Skeleton",
+		Callback = function(v)
+			this.Variables.SkeletonToggle = v
+		end
+	})
 end
 
 --[[
-	PlayerList is a table with the following format:
-
 	PlayerList = {
 		[UserId] = {
 			Character (Model | nil),
-			CharacterName (string | nil), -- cached to avoid indexing every frame
-			HumanoidRootPart (BasePart | nil), -- cached to avoid FindFirstChild every frame
+			CharacterName (string | nil),
+			HumanoidRootPart (BasePart | nil),
+			RigType ("R6" | "R15" | nil),
+			Limbs ({ [partName] = BasePart }),
 			CharacterAdded (Connection),
 			CharacterRemoving (Connection)
 		}
@@ -131,14 +151,16 @@ this.PlayerList = {}
 this.PlayerConnected = nil
 this.PlayerRemoving = nil
 
-local function GetOrCreateDrawings(UserId)
+local function GetOrCreateDrawings(UserId, boneCount)
 	local d = this.Drawings[UserId]
+
 	if not d.Box then
 		local box = Drawing.new("Square")
 		box.Thickness = 1
 		box.Visible = false
 		d.Box = box
 	end
+
 	if not d.Texts.Name then
 		local t = Drawing.new("Text")
 		t.Size = 12
@@ -147,6 +169,16 @@ local function GetOrCreateDrawings(UserId)
 		t.Visible = false
 		d.Texts.Name = t
 	end
+
+	-- Ensure enough bone lines exist
+	while #d.Lines < boneCount do
+		local l = Drawing.new("Line")
+		l.Thickness = 1
+		l.Color = Color3.new(1, 1, 1)
+		l.Visible = false
+		d.Lines[#d.Lines + 1] = l
+	end
+
 	return d
 end
 
@@ -168,9 +200,57 @@ local function SetDrawingsVisible(UserId, visible)
 	end
 end
 
+local function SetSkeletonVisible(UserId, visible)
+	local d = this.Drawings[UserId]
+	if not d then return end
+	for _, line in ipairs(d.Lines) do
+		if line.Visible ~= visible then
+			line.Visible = visible
+		end
+	end
+end
+
+local function UpdateSkeleton(id, s, d)
+	local bones = s.RigType == "R6" and R6_BONES or R15_BONES
+	local limbs = s.Limbs
+
+	for i, bone in ipairs(bones) do
+		local partA = limbs[bone[1]]
+		local partB = limbs[bone[2]]
+		local line  = d.Lines[i]
+		if not line then continue end
+
+		if partA == nil or partB == nil then
+			if line.Visible then line.Visible = false end
+			continue
+		end
+
+		local posA, onA = _camera:WorldToViewportPoint(partA.Position)
+		local posB, onB = _camera:WorldToViewportPoint(partB.Position)
+
+		if not onA or not onB then
+			if line.Visible then line.Visible = false end
+			continue
+		end
+
+		local from = Vector2.new(posA.X, posA.Y)
+		local to   = Vector2.new(posB.X, posB.Y)
+
+		if line.From ~= from then line.From = from end
+		if line.To   ~= to   then line.To   = to   end
+		if not line.Visible   then line.Visible = true end
+	end
+
+	-- Hide any extra lines beyond current bone count
+	for i = #bones + 1, #d.Lines do
+		if d.Lines[i].Visible then d.Lines[i].Visible = false end
+	end
+end
+
 local function HandleEsp()
+	local showSkeleton = this.Variables.SkeletonToggle
+
 	for id, s in pairs(this.PlayerList) do
-		-- Skip local player and players without a character or root part
 		if id == _localId or s.HumanoidRootPart == nil then
 			SetDrawingsVisible(id, false)
 			continue
@@ -182,43 +262,85 @@ local function HandleEsp()
 			continue
 		end
 
-		local d = GetOrCreateDrawings(id)
+		local boneCount = s.RigType == "R6" and #R6_BONES or #R15_BONES
+		local d = GetOrCreateDrawings(id, boneCount)
+
+		-- Name label
 		local nameLabel = d.Texts.Name
 		local newPos = Vector2.new(pos.X, pos.Y)
+		if nameLabel.Position ~= newPos then nameLabel.Position = newPos end
+		if nameLabel.Text ~= s.CharacterName then nameLabel.Text = s.CharacterName end
+		if not nameLabel.Visible then nameLabel.Visible = true end
 
-		if nameLabel.Position ~= newPos then
-			nameLabel.Position = newPos
-		end
-		-- Use cached name to avoid indexing Character every frame
-		if nameLabel.Text ~= s.CharacterName then
-			nameLabel.Text = s.CharacterName
-		end
-		if not nameLabel.Visible then
-			nameLabel.Visible = true
+		-- Skeleton
+		if showSkeleton and s.RigType ~= nil then
+			UpdateSkeleton(id, s, d)
+		else
+			SetSkeletonVisible(id, false)
 		end
 	end
+end
+
+local function ResolveRig(Character)
+	-- R15 has LowerTorso, R6 has Torso
+	if Character:FindFirstChild("LowerTorso") then
+		return "R15"
+	elseif Character:FindFirstChild("Torso") then
+		return "R6"
+	end
+	return nil
+end
+
+local function ResolveLimbs(Character, rigType)
+	local limbs = {}
+	local parts = rigType == "R6" and {
+		"Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"
+	} or {
+		"Head", "UpperTorso", "LowerTorso",
+		"LeftUpperArm", "LeftLowerArm", "LeftHand",
+		"RightUpperArm", "RightLowerArm", "RightHand",
+		"LeftUpperLeg", "LeftLowerLeg", "LeftFoot",
+		"RightUpperLeg", "RightLowerLeg", "RightFoot",
+	}
+	for _, name in ipairs(parts) do
+		limbs[name] = Character:FindFirstChild(name)
+	end
+	return limbs
 end
 
 local function OnCharacterAdded(player, PlayerStruct, Character)
 	PlayerStruct.Character = Character
 	PlayerStruct.CharacterName = Character.Name
-	-- Wait for HumanoidRootPart to exist, then cache it
+	PlayerStruct.HumanoidRootPart = nil
+	PlayerStruct.RigType = nil
+	PlayerStruct.Limbs = {}
+
 	local hrp = Character:FindFirstChild("HumanoidRootPart")
 		or Character:WaitForChild("HumanoidRootPart", 10)
+	if not hrp then return end
+
+	local rigType = ResolveRig(Character)
 	PlayerStruct.HumanoidRootPart = hrp
+	PlayerStruct.RigType = rigType
+	PlayerStruct.Limbs = rigType and ResolveLimbs(Character, rigType) or {}
 end
 
 local function OnCharacterRemoving(PlayerStruct)
 	PlayerStruct.Character = nil
 	PlayerStruct.CharacterName = nil
 	PlayerStruct.HumanoidRootPart = nil
+	PlayerStruct.RigType = nil
+	PlayerStruct.Limbs = {}
 end
 
 function this.PopulatePlayer(player)
-	local PlayerStruct = {}
-	PlayerStruct.Character = nil
-	PlayerStruct.CharacterName = nil
-	PlayerStruct.HumanoidRootPart = nil
+	local PlayerStruct = {
+		Character = nil,
+		CharacterName = nil,
+		HumanoidRootPart = nil,
+		RigType = nil,
+		Limbs = {},
+	}
 
 	local c = player.CharacterAdded:Connect(function(Character)
 		OnCharacterAdded(player, PlayerStruct, Character)
@@ -229,7 +351,6 @@ function this.PopulatePlayer(player)
 	PlayerStruct.CharacterAdded = c
 	PlayerStruct.CharacterRemoving = uc
 
-	-- Handle already-spawned character
 	if player.Character then
 		task.spawn(OnCharacterAdded, player, PlayerStruct, player.Character)
 	end
@@ -267,7 +388,7 @@ function this.StartThreads()
 		this.PopulatePlayer(player)
 	end
 	this.PlayerConnected = this.Services.Players.PlayerAdded:Connect(this.PopulatePlayer)
-	this.PlayerRemoving = this.Services.Players.PlayerRemoving:Connect(this.CleanupPlayer)
+	this.PlayerRemoving  = this.Services.Players.PlayerRemoving:Connect(this.CleanupPlayer)
 
 	this._RenderThread = this.Services.RunService.RenderStepped:Connect(function(dt)
 		if this.Variables.ESPMasterToggle then
