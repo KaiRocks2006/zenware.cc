@@ -12,65 +12,40 @@ function this.IsCrateLoaded(Crate)
 end
 
 function this.GetCrateRarity(Crate)
-    local RarityColors = {
-        { Color3.fromRGB(128, 128, 128), "Common"   },
-        { Color3.fromRGB(82, 177, 65),   "Uncommon" },
-        { Color3.fromRGB(0, 98, 255),    "Rare"     },
-        { Color3.fromRGB(228, 121, 255), "Epic"     },
-    }
-
     if not this.IsCrateLoaded(Crate) then
         return nil
     end
 
-    local Mesh = Crate:FindFirstChild("Mesh")
-    if not Mesh then
-        warn("No Mesh:", Crate:GetFullName())
+    local mesh = Crate:FindFirstChild("Mesh")
+    if not mesh then
         return nil
     end
 
-    -- Try to locate the mesh part regardless of hierarchy.
-    local MeshPart =
-        Mesh:FindFirstChild("updated_Cube.039", true)
-        or Mesh:FindFirstChildWhichIsA("BasePart", true)
-
-    if not MeshPart then
-        warn("Couldn't find mesh part in:", Mesh:GetFullName())
+    local part = mesh:FindFirstChild("updated_Cube.039", true)
+    if not part then
         return nil
     end
 
-    local color = MeshPart.Color
-
-    print("-------------------------")
-    print("Crate:", Crate.Name)
-    print("MeshPart:", MeshPart:GetFullName())
-    print("Color:", color)
-    print(
-        "RGB:",
-        math.floor(color.R * 255 + 0.5),
-        math.floor(color.G * 255 + 0.5),
-        math.floor(color.B * 255 + 0.5)
-    )
-
+    local color = part.Color
     local threshold = 0.05
 
-    for _, entry in ipairs(RarityColors) do
-        local c = entry[1]
+    local rarities = {
+        Common    = Color3.fromRGB(128,128,128),
+        Uncommon  = Color3.fromRGB(82,177,65),
+        Rare      = Color3.fromRGB(0,98,255),
+        Epic      = Color3.fromRGB(228,121,255),
+    }
 
-        local dr = math.abs(c.R - color.R)
-        local dg = math.abs(c.G - color.G)
-        local db = math.abs(c.B - color.B)
-
-        print(entry[2], dr, dg, db)
-
-        if dr < threshold and dg < threshold and db < threshold then
-            print("Matched:", entry[2])
-            return entry[2]
+    for rarity, c in pairs(rarities) do
+        if math.abs(c.R - color.R) < threshold
+        and math.abs(c.G - color.G) < threshold
+        and math.abs(c.B - color.B) < threshold then
+            return rarity
         end
     end
 
-    print("No match -> Legendary")
-    return "Legendary"
+    -- Unknown color. Don't assume Legendary yet.
+    return nil
 end
 
 this.Vars = {
