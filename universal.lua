@@ -112,58 +112,67 @@ this.PlayerList = {}
 this.PlayerConnected = nil
 this.PlayerRemoving = nil
 
-local function GetBox(UserId)
-	if this.Drawings[UserId].Box then
-		return this.Drawings[UserId].Box
-	else
+-- Creates drawings for a player if they don't exist yet, returns them
+local function GetOrCreateDrawings(UserId)
+	local d = this.Drawings[UserId]
+	if not d.Box then
 		local box = Drawing.new("Square")
 		box.Thickness = 1
 		box.Visible = false
-		this.Drawings[UserId].Box = box
-		return box
+		d.Box = box
+	end
+	if not d.Texts.Name then
+		local t = Drawing.new("Text")
+		t.Size = 12
+		t.Color = Color3.new(1, 1, 1)
+		t.Center = true
+		t.Visible = false
+		d.Texts.Name = t
+	end
+	return d
+end
+
+local function SetDrawingsVisible(UserId, visible)
+	local d = this.Drawings[UserId]
+	if not d then return end
+	if d.Box then d.Box.Visible = visible end
+	for _, text in pairs(d.Texts) do
+		text.Visible = visible
+	end
+	for _, line in ipairs(d.Lines) do
+		line.Visible = visible
 	end
 end
 
-local function NewText(UserId, LabelName, Text, Size, Position, Color, Center)
-	local t = Drawing.new("Text")
-	t.Text = Text
-	t.Size = Size
-	t.Position = Position
-	t.Color = Color
-	t.Center = Center or false
-	this.Drawings[UserId].Texts[LabelName] = t
-	return t
-end
-
-local function NewLine(UserId, From, To, Thickness, Color)
-	local l = Drawing.new("Line")
-	l.From = From
-	l.To = To
-	l.Thickness = Thickness
-	l.Color = Color
-	table.insert(this.Drawings[UserId].Lines, l)
-	return l
-end
-
 local function HandleEsp()
+	local localId = this.Services.Players.LocalPlayer.UserId
+	local camera = this.Services.Workspace.CurrentCamera
+
 	for id, s in pairs(this.PlayerList) do
-		if s.Character == nil or id == this.Services.Players.LocalPlayer.UserId then continue end
-		local HumanoidRootPart = s.Character:FindFirstChild("HumanoidRootPart")
-		if HumanoidRootPart == nil then continue end
-		local pos, onscreen = this.Services.Workspace.CurrentCamera:WorldToViewportPoint(HumanoidRootPart.Position)
-		if onscreen then
-			local NameLabel = this.Drawings[id].Texts.Name
-			if NameLabel then
-				NameLabel.Text = s.Character.Name
-				NameLabel.Size = 12
-				NameLabel.Color = Color3.new(1, 1, 1)
-				NameLabel.Center = true
-				NameLabel.Visible = true
-				NameLabel.Position = Vector2.new(pos.X, pos.Y)
-			else
-				NewText(id, "Name", s.Character.Name, 12, Vector2.new(pos.X, pos.Y), Color3.new(1, 1, 1), true)
-			end
+		if id == localId or s.Character == nil then
+			SetDrawingsVisible(id, false)
+			continue
 		end
+
+		local HumanoidRootPart = s.Character:FindFirstChild("HumanoidRootPart")
+		if HumanoidRootPart == nil then
+			SetDrawingsVisible(id, false)
+			continue
+		end
+
+		local pos, onscreen = camera:WorldToViewportPoint(HumanoidRootPart.Position)
+		if not onscreen then
+			SetDrawingsVisible(id, false)
+			continue
+		end
+
+		local d = GetOrCreateDrawings(id)
+
+		-- Update name label
+		local nameLabel = d.Texts.Name
+		nameLabel.Text = s.Character.Name
+		nameLabel.Position = Vector2.new(pos.X, pos.Y)
+		nameLabel.Visible = true
 	end
 end
 
@@ -191,10 +200,10 @@ function this.CleanupPlayer(player)
 		if this.Drawings[player.UserId].Box then
 			this.Drawings[player.UserId].Box:Remove()
 		end
-		for _, d in this.Drawings[player.UserId].Lines do
+		for _, d in pairs(this.Drawings[player.UserId].Texts) do
 			d:Remove()
 		end
-		for _, d in this.Drawings[player.UserId].Texts do
+		for _, d in ipairs(this.Drawings[player.UserId].Lines) do
 			d:Remove()
 		end
 		this.Drawings[player.UserId] = nil
@@ -203,21 +212,6 @@ function this.CleanupPlayer(player)
 		this.PlayerList[player.UserId].CharacterAdded:Disconnect()
 		this.PlayerList[player.UserId].CharacterRemoving:Disconnect()
 		this.PlayerList[player.UserId] = nil
-	end
-end
-
-function this.CleanDrawings()
-	for id, _ in pairs(this.PlayerList) do
-		if this.Drawings[id] then
-			for _, d in this.Drawings[id].Lines do
-				d.Visible = false
-			end
-			table.clear(this.Drawings[id].Lines)
-			for _, d in this.Drawings[id].Texts do
-				d.Visible = false
-			end
-			table.clear(this.Drawings[id].Texts)
-		end
 	end
 end
 
@@ -230,8 +224,14 @@ function this.StartThreads()
 
 	-- For rendering
 	this._RenderThread = this.Services.RunService.RenderStepped:Connect(function(dt)
-		this.CleanDrawings()
-		if this.Variables.ESPMasterToggle then HandleEsp() end
+		if this.Variables.ESPMasterToggle then
+			HandleEsp()
+		else
+			-- Hide all drawings when ESP is toggled off
+			for id, _ in pairs(this.PlayerList) do
+				SetDrawingsVisible(id, false)
+			end
+		end
 	end)
 
 	-- For handling main logic
