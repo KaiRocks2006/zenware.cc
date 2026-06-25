@@ -112,7 +112,6 @@ this.PlayerList = {}
 this.PlayerConnected = nil
 this.PlayerRemoving = nil
 
--- Creates drawings for a player if they don't exist yet, returns them
 local function GetOrCreateDrawings(UserId)
 	local d = this.Drawings[UserId]
 	if not d.Box then
@@ -135,12 +134,18 @@ end
 local function SetDrawingsVisible(UserId, visible)
 	local d = this.Drawings[UserId]
 	if not d then return end
-	if d.Box then d.Box.Visible = visible end
+	if d.Box and d.Box.Visible ~= visible then
+		d.Box.Visible = visible
+	end
 	for _, text in pairs(d.Texts) do
-		text.Visible = visible
+		if text.Visible ~= visible then
+			text.Visible = visible
+		end
 	end
 	for _, line in ipairs(d.Lines) do
-		line.Visible = visible
+		if line.Visible ~= visible then
+			line.Visible = visible
+		end
 	end
 end
 
@@ -167,12 +172,18 @@ local function HandleEsp()
 		end
 
 		local d = GetOrCreateDrawings(id)
-
-		-- Update name label
 		local nameLabel = d.Texts.Name
-		nameLabel.Text = s.Character.Name
-		nameLabel.Position = Vector2.new(pos.X, pos.Y)
-		nameLabel.Visible = true
+		local newPos = Vector2.new(pos.X, pos.Y)
+
+		if nameLabel.Position ~= newPos then
+			nameLabel.Position = newPos
+		end
+		if nameLabel.Text ~= s.Character.Name then
+			nameLabel.Text = s.Character.Name
+		end
+		if not nameLabel.Visible then
+			nameLabel.Visible = true
+		end
 	end
 end
 
@@ -222,19 +233,16 @@ function this.StartThreads()
 	this.PlayerConnected = this.Services.Players.PlayerAdded:Connect(this.PopulatePlayer)
 	this.PlayerRemoving = this.Services.Players.PlayerRemoving:Connect(this.CleanupPlayer)
 
-	-- For rendering
 	this._RenderThread = this.Services.RunService.RenderStepped:Connect(function(dt)
 		if this.Variables.ESPMasterToggle then
 			HandleEsp()
 		else
-			-- Hide all drawings when ESP is toggled off
 			for id, _ in pairs(this.PlayerList) do
 				SetDrawingsVisible(id, false)
 			end
 		end
 	end)
 
-	-- For handling main logic
 	this._LogicThread = task.spawn(function()
 		while task.wait() do
 
