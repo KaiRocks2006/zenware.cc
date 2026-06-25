@@ -13,20 +13,32 @@ end
 
 function this.GetCrateRarity(Crate)
 	local RarityColors = {
-		[Color3.fromRGB(128, 128, 128)] = "Common",
-		[Color3.fromRGB(82, 177, 65)]   = "Uncommon",
-		[Color3.fromRGB(0, 98, 255)]    = "Rare",
-		[Color3.fromRGB(228, 121, 255)] = "Epic",
+		{ Color3.fromRGB(128, 128, 128), "Common"   },
+		{ Color3.fromRGB(82,  177, 65),  "Uncommon" },
+		{ Color3.fromRGB(0,   98,  255), "Rare"     },
+		{ Color3.fromRGB(228, 121, 255), "Epic"     },
 	}
 
-	if this.IsCrateLoaded(Crate) then
-		local Mesh = Crate:FindFirstChild("Mesh")
-		if Mesh == nil then return nil end
-		local MeshPart = Mesh:FindFirstChild("Meshes/updated_Cube.039")
-		if MeshPart == nil then return nil end
-		return RarityColors[MeshPart.Color] or "Legendary"
+	if not this.IsCrateLoaded(Crate) then return nil end
+
+	local Mesh = Crate:FindFirstChild("Mesh")
+	if Mesh == nil then return nil end
+	local MeshPart = Mesh:FindFirstChild("Meshes/updated_Cube.039")
+	if MeshPart == nil then return nil end
+
+	local color = MeshPart.Color
+	local threshold = 0.05
+
+	for _, entry in ipairs(RarityColors) do
+		local c = entry[1]
+		if math.abs(c.R - color.R) < threshold
+		and math.abs(c.G - color.G) < threshold
+		and math.abs(c.B - color.B) < threshold then
+			return entry[2]
+		end
 	end
-	return nil
+
+	return "Legendary"
 end
 
 this.Vars = {
