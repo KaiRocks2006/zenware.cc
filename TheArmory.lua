@@ -26,19 +26,28 @@ this.Values = {
 
 this.PlayerList = {}
 
-local function GetCharacterParts(Character : Model)
-	if Character and Character.HumanoidRootPart then
-		local Parts = {
-			Head = Character.Head,
-			Torso = Character.Torso,
-			LeftLeg = Character.LeftLeg,
-			RightLeg = Character.RightLeg,
-			LeftArm = Character.LeftArm,
-			RightArm = Character.RightArm,
-		}
-		return Parts
-	end
-	return nil
+-- Helper function to get character parts with both modern and legacy naming
+local function GetCharacterParts(Character)
+	if not Character then return nil end
+	
+	local parts = {}
+	
+	-- Try modern naming first
+	parts.Head = Character:FindFirstChild("Head")
+	parts.UpperTorso = Character:FindFirstChild("UpperTorso") or Character:FindFirstChild("Torso")
+	parts.LowerTorso = Character:FindFirstChild("LowerTorso") or Character:FindFirstChild("Torso")
+	parts.LeftArm = Character:FindFirstChild("LeftUpperArm") or Character:FindFirstChild("LeftArm")
+	parts.RightArm = Character:FindFirstChild("RightUpperArm") or Character:FindFirstChild("RightArm")
+	parts.LeftLeg = Character:FindFirstChild("LeftUpperLeg") or Character:FindFirstChild("LeftLeg")
+	parts.RightLeg = Character:FindFirstChild("RightUpperLeg") or Character:FindFirstChild("RightLeg")
+	
+	-- Additional limb parts for more detailed skeleton
+	parts.LeftForearm = Character:FindFirstChild("LeftLowerArm")
+	parts.RightForearm = Character:FindFirstChild("RightLowerArm")
+	parts.LeftLowerLeg = Character:FindFirstChild("LeftLowerLeg")
+	parts.RightLowerLeg = Character:FindFirstChild("RightLowerLeg")
+	
+	return parts
 end
 
 function this.Load(Context)
@@ -77,14 +86,13 @@ function this.Load(Context)
 	})
 
 	Sections.Visuals.Player.SkeletonColor = Sections.Visuals.Player.GroupBox:AddLabel('Color'):AddColorPicker('ColorPicker', {
-    Default = this.Values.Visuals.Player.Skeleton.Color,
-    Title = 'Skeleton Color',
-    Transparency = 0,
-
-    Callback = function(Value)
-        this.Values.Visuals.Player.Skeleton.Color = Value
-    end
-})
+		Default = this.Values.Visuals.Player.Skeleton.Color,
+		Title = 'Skeleton Color',
+		Transparency = 0,
+		Callback = function(Value)
+			this.Values.Visuals.Player.Skeleton.Color = Value
+		end
+	})
 
 	this.StartThreads()
 end
@@ -99,11 +107,18 @@ local function CreatePlayerEntry(player)
 			Box = Drawing.new("Square"),
 			Tracer = Drawing.new("Line"),
 			Bones = {
+				-- Main skeleton connections
 				HeadToTorso = Drawing.new("Line"),
 				TorsoToLArm = Drawing.new("Line"),
 				TorsoToRArm = Drawing.new("Line"),
 				TorsoToLLeg = Drawing.new("Line"),
 				TorsoToRLeg = Drawing.new("Line"),
+				-- Additional connections for better skeleton
+				TorsoToLowerTorso = Drawing.new("Line"),
+				LArmToLForearm = Drawing.new("Line"),
+				RArmToRForearm = Drawing.new("Line"),
+				LLegToLLowerLeg = Drawing.new("Line"),
+				RLegToRLowerLeg = Drawing.new("Line"),
 			},
 			Texts = {},
 		}
@@ -111,9 +126,7 @@ local function CreatePlayerEntry(player)
 end
 
 function this.StartThreads()
-
 	Zenware.Logic = task.spawn(function()
-
 		for _, v in Players:GetPlayers() do
 			CreatePlayerEntry(v)
 			this.PlayerList[v.UserId].Character = v.Character
@@ -146,7 +159,6 @@ function this.StartThreads()
 
 			this.PlayerList[player.UserId] = nil
 		end)
-
 	end)
 
 	Zenware.Render = RunService.RenderStepped:Connect(function()
@@ -154,37 +166,44 @@ function this.StartThreads()
 		if not this.Values.Visuals.Player.Skeleton.Enabled then return end
 
 		local cam = Workspace.CurrentCamera
+		if not cam then return end
 
 		for _, ps in pairs(this.PlayerList) do
 			local char = ps.Character
 			if not char then continue end
 
-			local head = char:FindFirstChild("Head")
-			local torso = char:FindFirstChild("Torso")
-			local larm = char:FindFirstChild("LeftArm")
-			local rarm = char:FindFirstChild("RightArm")
-			local lleg = char:FindFirstChild("LeftLeg")
-			local rleg = char:FindFirstChild("RightLeg")
-
-			if not (head and torso and larm and rarm and lleg and rleg) then
+			local parts = GetCharacterParts(char)
+			
+			-- Check if we have the minimum required parts
+			if not parts.Head or not parts.UpperTorso then
+				-- Hide all bones if character isn't fully loaded
+				for _, bone in pairs(ps.Drawings.Bones) do
+					bone.Visible = false
+				end
 				continue
 			end
 
-			local function W2S(part)
-				local pos, vis = cam:WorldToViewportPoint(part.Position)
-				return Vector2.new(pos.X, pos.Y), vis
+			local function WorldToScreen(part)
+				if not part then return nil, false end
+				local pos, onScreen = cam:WorldToViewportPoint(part.Position)
+				return Vector2.new(pos.X, pos.Y), onScreen
 			end
 
-			local head2d, headVis = W2S(head)
-			local torso2d, torsoVis = W2S(torso)
-			local larm2d, _ = W2S(larm)
-			local rarm2d, _ = W2S(rarm)
-			local lleg2d, _ = W2S(lleg)
-			local rleg2d, _ = W2S(rleg)
+			-- Get all part positions
+			local headPos, headOnScreen = WorldToScreen(parts.Head)
+			local torsoPos, torsoOnScreen = WorldToScreen(parts.UpperTorso)
+			local lowerTorsoPos = parts.LowerTorso and WorldToScreen(parts.LowerTorso) or nil
+			local lArmPos = parts.LeftArm and WorldToScreen(parts.LeftArm) or nil
+			local rArmPos = parts.RightArm and WorldToScreen(parts.RightArm) or nil
+			local lLegPos = parts.LeftLeg and WorldToScreen(parts.LeftLeg) or nil
+			local rLegPos = parts.RightLeg and WorldToScreen(parts.RightLeg) or nil
+			local lForearmPos = parts.LeftForearm and WorldToScreen(parts.LeftForearm) or nil
+			local rForearmPos = parts.RightForearm and WorldToScreen(parts.RightForearm) or nil
+			local lLowerLegPos = parts.LeftLowerLeg and WorldToScreen(parts.LeftLowerLeg) or nil
+			local rLowerLegPos = parts.RightLowerLeg and WorldToScreen(parts.RightLowerLeg) or nil
 
-			local _, onScreen = cam:WorldToViewportPoint(torso.Position)
-
-			if not onScreen then
+			-- Hide all bones if torso isn't on screen
+			if not torsoOnScreen or not torsoPos then
 				for _, bone in pairs(ps.Drawings.Bones) do
 					bone.Visible = false
 				end
@@ -193,20 +212,59 @@ function this.StartThreads()
 
 			local bones = ps.Drawings.Bones
 			local cfg = this.Values.Visuals.Player.Skeleton
+			local thickness = cfg.Thickness or 1
 
-			local function SetLine(line, from, to)
-				line.Visible = true
-				line.From = from
-				line.To = to
-				line.Color = cfg.Color
-				line.Thickness = cfg.Thickness
+			-- Helper function to update a bone line
+			local function UpdateBone(line, from, to, visible)
+				if not line then return end
+				if visible and from and to then
+					line.Visible = true
+					line.From = from
+					line.To = to
+					line.Color = cfg.Color
+					line.Thickness = thickness
+				else
+					line.Visible = false
+				end
 			end
 
-			SetLine(bones.HeadToTorso, head2d, torso2d)
-			SetLine(bones.TorsoToLArm, torso2d, larm2d)
-			SetLine(bones.TorsoToRArm, torso2d, rarm2d)
-			SetLine(bones.TorsoToLLeg, torso2d, lleg2d)
-			SetLine(bones.TorsoToRLeg, torso2d, rleg2d)
+			-- Update all bone connections
+			UpdateBone(bones.HeadToTorso, headPos, torsoPos, headOnScreen and headPos ~= nil)
+			UpdateBone(bones.TorsoToLArm, torsoPos, lArmPos, lArmPos ~= nil)
+			UpdateBone(bones.TorsoToRArm, torsoPos, rArmPos, rArmPos ~= nil)
+			UpdateBone(bones.TorsoToLLeg, torsoPos, lLegPos, lLegPos ~= nil)
+			UpdateBone(bones.TorsoToRLeg, torsoPos, rLegPos, rLegPos ~= nil)
+			
+			-- Update additional bones if they exist
+			if lowerTorsoPos then
+				UpdateBone(bones.TorsoToLowerTorso, torsoPos, lowerTorsoPos, true)
+			else
+				bones.TorsoToLowerTorso.Visible = false
+			end
+			
+			if lForearmPos then
+				UpdateBone(bones.LArmToLForearm, lArmPos, lForearmPos, lArmPos ~= nil)
+			else
+				bones.LArmToLForearm.Visible = false
+			end
+			
+			if rForearmPos then
+				UpdateBone(bones.RArmToRForearm, rArmPos, rForearmPos, rArmPos ~= nil)
+			else
+				bones.RArmToRForearm.Visible = false
+			end
+			
+			if lLowerLegPos then
+				UpdateBone(bones.LLegToLLowerLeg, lLegPos, lLowerLegPos, lLegPos ~= nil)
+			else
+				bones.LLegToLLowerLeg.Visible = false
+			end
+			
+			if rLowerLegPos then
+				UpdateBone(bones.RLegToRLowerLeg, rLegPos, rLowerLegPos, rLegPos ~= nil)
+			else
+				bones.RLegToRLowerLeg.Visible = false
+			end
 		end
 	end)
 end
