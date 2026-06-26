@@ -44,6 +44,15 @@ local MenuGroup = SettingsTab:AddLeftGroupbox('Menu')
 MenuGroup:AddButton('Unload', function() Library:Unload() end)
 MenuGroup:AddLabel('Menu bind'):AddKeyPicker('MenuKeybind', { Default = 'End', NoUI = true, Text = 'Menu keybind' })
 Library.ToggleKeybind = Options.MenuKeybind -- Allows you to have a custom keybind for the menu
+
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({ 'MenuKeybind' })
+ThemeManager:SetFolder('zenware.cc')
+SaveManager:SetFolder('zenware.cc/' .. DetectedGame)
+
 SaveManager:BuildConfigSection(SettingsTab)
 
 ThemeManager:ApplyToTab(SettingsTab)
