@@ -22,7 +22,7 @@ local Groupboxes = {
 	World = {}
 }
 
-function this.Start(Context)
+function this.Load(Context)
 	Window = Context.Window
 	Library = Context.Library
 
