@@ -7,9 +7,8 @@ local Tabs = {
 	Visuals = nil
 }
 
-local SubTabs = {
+local Sections = {
 	Visuals = {
-		TabBox = nil,
 		Player = nil,
 		NPC = nil,
 		World = nil,
@@ -21,10 +20,9 @@ function this.Load(Context)
 	Library = Context.Library
 
 	Tabs.Visuals = Window:AddTab('Visuals')
-	SubTabs.Visuals.TabBox = Tabs.Visuals:AddTabbox()
-	SubTabs.Visuals.Player = SubTabs.Visuals.TabBox:AddTab('Player')
-	SubTabs.Visuals.NPC = SubTabs.Visuals.TabBox:AddTab('NPC')
-	SubTabs.Visuals.World = SubTabs.Visuals.TabBox:AddTab('World')
+	Sections.Visuals.Player = Sections.Visuals.TabBox:AddGroupbox('Player')
+	Sections.Visuals.NPC = Sections.Visuals.TabBox:AddGroupbox('NPC')
+	Sections.Visuals.World = Sections.Visuals.TabBox:AddGroupbox('World')
 end
 
 return this
