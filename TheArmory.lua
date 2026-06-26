@@ -1,18 +1,10 @@
 local this = {}
 
-local Window = nil
-local Library = nil
-
-
-
 function this.Load(Context)
-	Window = Context.Window
-	Library = Context.Library
-
 	local Tabs = {
-		Main = Window:AddTab('Visuals'),
-		Visuals = Window:AddTab('Visuals'),
-		['UI Settings'] = Window:AddTab('UI Settings'),
+		Main = Context.Window:AddTab('Visuals'),
+		Visuals = Context.Window:AddTab('Visuals'),
+		['UI Settings'] = Context.Window:AddTab('UI Settings'),
 	}
 
 	local Sections = {
