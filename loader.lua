@@ -21,6 +21,16 @@ local Window = Library:CreateWindow({
     MenuFadeTime = 0.2
 })
 
+getgenv().Zenware = {
+    Render = nil,
+    Logic  = nil,
+}
+
+function Zenware.Kill()
+    if Zenware.Render then Zenware.Render:Disconnect() end
+    if Zenware.Logic then task.cancel(Zenware.Logic) end
+end
+
 local Context = {
     Window = Window,
     Library = Library,
@@ -54,5 +64,11 @@ ThemeManager:SetFolder('zenware.cc')
 SaveManager:SetFolder('zenware.cc/' .. DetectedGame)
 
 SaveManager:BuildConfigSection(SettingsTab)
+
+Library:OnUnload(function()
+    Zenware.Kill()
+    Module.Unload()
+    Library.Unloaded = true
+end)
 
 ThemeManager:ApplyToTab(SettingsTab)
