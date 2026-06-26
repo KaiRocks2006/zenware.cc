@@ -25,23 +25,6 @@ this.Values = {
 
 this.PlayerList = {}
 
--- Helper function to get character parts for R6
-local function GetCharacterParts(Character)
-	if not Character then return nil end
-	
-	local parts = {}
-	
-	-- R6 uses these part names directly
-	parts.Head = Character:FindFirstChild("Head")
-	parts.Torso = Character:FindFirstChild("Torso")
-	parts.LeftArm = Character:FindFirstChild("LeftArm")
-	parts.RightArm = Character:FindFirstChild("RightArm")
-	parts.LeftLeg = Character:FindFirstChild("LeftLeg")
-	parts.RightLeg = Character:FindFirstChild("RightLeg")
-	
-	return parts
-end
-
 -- Helper function to remove highlights from a player
 local function RemoveHighlights(ps)
 	if not ps or not ps.Highlights then return end
@@ -63,55 +46,32 @@ local function UpdateHighlights(ps, color, enabled)
 		return
 	end
 	
-	local parts = GetCharacterParts(ps.Character)
-	if not parts or not parts.Torso then
-		RemoveHighlights(ps)
-		return
-	end
-	
 	-- Initialize highlights table if needed
 	if not ps.Highlights then
 		ps.Highlights = {}
 	end
 	
-	-- Create highlights for each part
-	local partNames = {"Head", "Torso", "LeftArm", "RightArm", "LeftLeg", "RightLeg"}
-	
-	for _, name in ipairs(partNames) do
-		local part = parts[name]
-		if part then
-			-- Check if highlight already exists for this part
-			local highlight = ps.Highlights[name]
-			if not highlight or highlight.Parent ~= ps.Character then
-				-- Remove old highlight if it exists
-				if highlight then
-					highlight:Destroy()
-				end
-				-- Create new highlight as child of character
-				highlight = Instance.new("Highlight")
-				highlight.Parent = ps.Character
-				highlight.Adornee = part
-				highlight.FillColor = color
-				highlight.FillTransparency = 0.5
-				highlight.OutlineColor = color
-				highlight.OutlineTransparency = 0
-				highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-				ps.Highlights[name] = highlight
-			else
-				-- Update existing highlight
-				highlight.Adornee = part
-				highlight.FillColor = color
-				highlight.OutlineColor = color
-			end
-		end
-	end
-	
-	-- Remove highlights for parts that no longer exist
-	for name, highlight in pairs(ps.Highlights) do
-		if not parts[name] or not highlight.Parent then
+	-- Check if highlight already exists
+	local highlight = ps.Highlights.Main
+	if not highlight or highlight.Parent ~= ps.Character then
+		-- Remove old highlight if it exists
+		if highlight then
 			highlight:Destroy()
-			ps.Highlights[name] = nil
 		end
+		-- Create new highlight as child of character
+		highlight = Instance.new("Highlight")
+		highlight.Parent = ps.Character
+		highlight.Adornee = ps.Character
+		highlight.FillColor = color
+		highlight.FillTransparency = 0.5
+		highlight.OutlineColor = color
+		highlight.OutlineTransparency = 0
+		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		ps.Highlights.Main = highlight
+	else
+		-- Update existing highlight
+		highlight.FillColor = color
+		highlight.OutlineColor = color
 	end
 end
 
