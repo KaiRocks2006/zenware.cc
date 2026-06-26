@@ -12,6 +12,7 @@ this.Values = {
 		AimKey = "MouseButton2",
 		Smoothness = 0.3,
 		FOV = 100,
+		DrawFOV = false,
 		TargetPart = "Head",
 		VisibleCheck = true,
 		TeamCheck = false,
@@ -36,6 +37,7 @@ this.Values = {
 this.PlayerList = {}
 this.AimbotTarget = nil
 this.AimKeyDown = false
+this.FOVCircle = nil
 
 -- Helper function to remove highlights from a player
 local function RemoveHighlights(ps)
@@ -98,6 +100,59 @@ local function UpdateAllHighlights()
 				ps.Highlights.Main = newHighlight
 			end
 		end
+	end
+end
+
+-- FOV Circle drawing functions
+local function CreateFOVCircle()
+	if this.FOVCircle then
+		this.FOVCircle:Remove()
+		this.FOVCircle = nil
+	end
+	
+	if not this.Values.Aim.DrawFOV then return end
+	
+	local circle = Drawing.new("Circle")
+	circle.Visible = true
+	circle.Radius = this.Values.Aim.FOV or 100
+	circle.Thickness = 1
+	circle.Color = Color3.new(1, 1, 1)
+	circle.Transparency = 0.5
+	circle.Filled = false
+	circle.NumSides = 64
+	
+	-- Position the circle at the center of the screen
+	local camera = Workspace.CurrentCamera
+	if camera then
+		local viewportSize = camera.ViewportSize
+		circle.Position = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+	end
+	
+	this.FOVCircle = circle
+end
+
+local function UpdateFOVCircle()
+	if not this.FOVCircle then
+		CreateFOVCircle()
+		return
+	end
+	
+	if not this.Values.Aim.DrawFOV then
+		if this.FOVCircle then
+			this.FOVCircle.Visible = false
+		end
+		return
+	end
+	
+	local circle = this.FOVCircle
+	circle.Visible = true
+	circle.Radius = this.Values.Aim.FOV or 100
+	
+	-- Update position to center of screen
+	local camera = Workspace.CurrentCamera
+	if camera then
+		local viewportSize = camera.ViewportSize
+		circle.Position = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
 	end
 end
 
@@ -453,6 +508,21 @@ function this.Load(Context)
 		Rounding = 0,
 		Callback = function(Value)
 			this.Values.Aim.FOV = Value
+			UpdateFOVCircle()
+		end
+	})
+
+	Sections.Aim.Settings.DrawFOVToggle = Sections.Aim.Settings.GroupBox:AddToggle('DrawFOV', {
+		Text = 'Draw FOV',
+		Default = false,
+		Tooltip = 'Draw a circle showing the FOV range',
+		Callback = function(Value)
+			this.Values.Aim.DrawFOV = Value
+			if Value then
+				CreateFOVCircle()
+			elseif this.FOVCircle then
+				this.FOVCircle.Visible = false
+			end
 		end
 	})
 
@@ -555,6 +625,13 @@ function this.StartThreads()
 	Zenware.Render = RunService.RenderStepped:Connect(function()
 		UpdateAllHighlights()
 		
+		-- Update FOV circle position and visibility
+		if this.Values.Aim.DrawFOV then
+			UpdateFOVCircle()
+		elseif this.FOVCircle then
+			this.FOVCircle.Visible = false
+		end
+		
 		-- Run aimbot
 		DoAimbot()
 	end)
@@ -570,6 +647,11 @@ function this.Unload()
 	table.clear(this.PlayerList)
 	this.AimbotTarget = nil
 	this.AimKeyDown = false
+	
+	if this.FOVCircle then
+		this.FOVCircle:Remove()
+		this.FOVCircle = nil
+	end
 	
 	UserInputService.GetMouseLocation = nil
 end
