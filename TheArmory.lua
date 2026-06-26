@@ -51,6 +51,14 @@ local function GetCharacterParts(Character)
 	return parts
 end
 
+-- Helper function to hide all bones for a player
+local function HideAllBones(ps)
+	if not ps or not ps.Drawings then return end
+	for _, bone in pairs(ps.Drawings.Bones) do
+		bone.Visible = false
+	end
+end
+
 function this.Load(Context)
 	local Tabs = {
 		Aim = Context.Window:AddTab('Aim'),
@@ -76,14 +84,30 @@ function this.Load(Context)
 		Text = 'Master',
 		Default = false,
 		Tooltip = 'Master switch for player ESP',
-		Callback = function(Value) this.Values.Visuals.Player.Master = Value end
+		Callback = function(Value) 
+			this.Values.Visuals.Player.Master = Value
+			-- Hide all bones when master is disabled
+			if not Value then
+				for _, ps in pairs(this.PlayerList) do
+					HideAllBones(ps)
+				end
+			end
+		end
 	})
 
 	Sections.Visuals.Player.SkeletonToggle = Sections.Visuals.Player.GroupBox:AddToggle('SkeletonToggle', {
 		Text = 'Skeletons',
 		Default = false,
 		Tooltip = 'Toggles skeleton ESP',
-		Callback = function(Value) this.Values.Visuals.Player.Skeleton.Enabled = Value end
+		Callback = function(Value) 
+			this.Values.Visuals.Player.Skeleton.Enabled = Value
+			-- Hide all bones when skeleton is disabled
+			if not Value then
+				for _, ps in pairs(this.PlayerList) do
+					HideAllBones(ps)
+				end
+			end
+		end
 	})
 
 	Sections.Visuals.Player.SkeletonColor = Sections.Visuals.Player.GroupBox:AddLabel('Color'):AddColorPicker('ColorPicker', {
@@ -157,24 +181,34 @@ function this.StartThreads()
 	end)
 
 	Zenware.Render = RunService.RenderStepped:Connect(function()
-		if not this.Values.Visuals.Player.Master then return end
-		if not this.Values.Visuals.Player.Skeleton.Enabled then return end
+		-- Check if toggles are enabled, if not hide all bones and return
+		if not this.Values.Visuals.Player.Master or not this.Values.Visuals.Player.Skeleton.Enabled then
+			for _, ps in pairs(this.PlayerList) do
+				HideAllBones(ps)
+			end
+			return
+		end
 
 		local cam = Workspace.CurrentCamera
-		if not cam then return end
+		if not cam then 
+			for _, ps in pairs(this.PlayerList) do
+				HideAllBones(ps)
+			end
+			return 
+		end
 
 		for _, ps in pairs(this.PlayerList) do
 			local char = ps.Character
-			if not char then continue end
+			if not char then 
+				HideAllBones(ps)
+				continue 
+			end
 
 			local parts = GetCharacterParts(char)
 			
 			-- Check if we have the minimum required parts for R6
 			if not parts.Head or not parts.Torso then
-				-- Hide all bones if character isn't fully loaded
-				for _, bone in pairs(ps.Drawings.Bones) do
-					bone.Visible = false
-				end
+				HideAllBones(ps)
 				continue
 			end
 
@@ -194,9 +228,7 @@ function this.StartThreads()
 
 			-- Hide all bones if torso isn't on screen
 			if not torsoOnScreen or not torsoPos then
-				for _, bone in pairs(ps.Drawings.Bones) do
-					bone.Visible = false
-				end
+				HideAllBones(ps)
 				continue
 			end
 
@@ -217,15 +249,6 @@ function this.StartThreads()
 					line.Visible = false
 				end
 			end
-
-			-- Debug: Print which parts are found
-			-- print(string.format("Parts found - Head: %s, Torso: %s, LArm: %s, RArm: %s, LLeg: %s, RLeg: %s", 
-			-- 	parts.Head and "Yes" or "No",
-			-- 	parts.Torso and "Yes" or "No",
-			-- 	parts.LeftArm and "Yes" or "No",
-			-- 	parts.RightArm and "Yes" or "No",
-			-- 	parts.LeftLeg and "Yes" or "No",
-			-- 	parts.RightLeg and "Yes" or "No"))
 
 			-- Update all bone connections for R6
 			UpdateBone(bones.HeadToTorso, headPos, torsoPos, headOnScreen and headPos ~= nil)
