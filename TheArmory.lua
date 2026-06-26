@@ -3,26 +3,25 @@ local this = {}
 local Window = nil
 local Library = nil
 
-local Tabs = {
-	Visuals = nil
-}
 
-local Sections = {
-	Visuals = {
-		Player = nil,
-		NPC = nil,
-		World = nil,
-	}
-}
 
 function this.Load(Context)
 	Window = Context.Window
 	Library = Context.Library
 
-	Tabs.Visuals = Window:AddTab('Visuals')
-	Sections.Visuals.Player = Tabs.Visuals:AddLeftGroupbox('Player')
-	Sections.Visuals.NPC = Tabs.Visuals:AddLeftGroupbox('NPC')
-	Sections.Visuals.World = Tabs.Visuals:AddRightGroupbox('World')
+	local Tabs = {
+		Main = Window:AddTab('Visuals'),
+		Visuals = Window:AddTab('Visuals'),
+		['UI Settings'] = Window:AddTab('UI Settings'),
+	}
+
+	local Sections = {
+		Visuals = {
+			Player = Tabs.Visuals:AddLeftGroupbox('Player'),
+			NPC = Tabs.Visuals:AddLeftGroupbox('NPC'),
+			World = Tabs.Visuals:AddRightGroupbox('World'),
+		}
+	}
 end
 
 return this
