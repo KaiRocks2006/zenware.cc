@@ -9,6 +9,7 @@ this.Values = {
 	Aim = {
 		Enabled = false,
 		Silent = false,
+		AimKey = "MouseButton2", -- Default to right mouse button
 		Smoothness = 0.3,
 		FOV = 100,
 		TargetPart = "Head",
@@ -34,6 +35,7 @@ this.Values = {
 
 this.PlayerList = {}
 this.AimbotTarget = nil
+this.AimKeyDown = false
 
 -- Helper function to remove highlights from a player
 local function RemoveHighlights(ps)
@@ -236,6 +238,11 @@ local function SetupSilentAim()
 			return originalGetMouseLocation(self)
 		end
 		
+		-- Only apply silent aim when aim key is held
+		if not this.AimKeyDown then
+			return originalGetMouseLocation(self)
+		end
+		
 		local targetPart = GetSilentAimTarget()
 		if not targetPart then
 			return originalGetMouseLocation(self)
@@ -258,6 +265,11 @@ end
 local function UpdateAimbot()
 	if not this.Values.Aim.Enabled then
 		this.AimbotTarget = nil
+		return
+	end
+	
+	-- Only aim when the aim key is held down
+	if not this.AimKeyDown then
 		return
 	end
 	
@@ -286,6 +298,28 @@ local function UpdateAimbot()
 	
 	local targetCFrame = CFrame.lookAt(camera.CFrame.Position, targetPart.Position)
 	SmoothAim(targetCFrame)
+end
+
+-- Setup input handling for aim key
+local function SetupAimKey()
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then return end
+		
+		local aimKey = this.Values.Aim.AimKey
+		if input.UserInputType == Enum.UserInputType[aimKey] or input.KeyCode == Enum.KeyCode[aimKey] then
+			this.AimKeyDown = true
+		end
+	end)
+	
+	UserInputService.InputEnded:Connect(function(input, gameProcessed)
+		if gameProcessed then return end
+		
+		local aimKey = this.Values.Aim.AimKey
+		if input.UserInputType == Enum.UserInputType[aimKey] or input.KeyCode == Enum.KeyCode[aimKey] then
+			this.AimKeyDown = false
+			this.AimbotTarget = nil
+		end
+	end)
 end
 
 function this.Load(Context)
@@ -356,6 +390,7 @@ function this.Load(Context)
 			this.Values.Aim.Enabled = Value
 			if not Value then
 				this.AimbotTarget = nil
+				this.AimKeyDown = false
 			end
 		end
 	})
@@ -371,6 +406,20 @@ function this.Load(Context)
 			else
 				UserInputService.GetMouseLocation = nil
 			end
+		end
+	})
+
+	-- Aim Key Label and KeyPicker
+	local aimKeyLabel = Sections.Aim.Main.GroupBox:AddLabel('Aim Key')
+	local aimKeyPicker = aimKeyLabel:AddKeyPicker('AimKeyPicker', {
+		Default = 'MouseButton2',
+		Text = 'Aim Key',
+		NoUI = false,
+		Callback = function(Value)
+			this.Values.Aim.AimKey = Value
+		end,
+		ChangedCallback = function(New)
+			this.Values.Aim.AimKey = New
 		end
 	})
 
@@ -396,7 +445,7 @@ function this.Load(Context)
 		end
 	})
 
-	-- Dropdown using the exact format from documentation
+	-- Dropdown for target part
 	Sections.Aim.Settings.TargetPartDropdown = Sections.Aim.Settings.GroupBox:AddDropdown('TargetPart', {
 		Values = { 'Head', 'Torso', 'HumanoidRootPart' },
 		Default = 1,
@@ -426,6 +475,9 @@ function this.Load(Context)
 		end
 	})
 
+	-- Setup aim key input handling
+	SetupAimKey()
+	
 	this.StartThreads()
 end
 
@@ -507,6 +559,7 @@ function this.Unload()
 
 	table.clear(this.PlayerList)
 	this.AimbotTarget = nil
+	this.AimKeyDown = false
 	
 	UserInputService.GetMouseLocation = nil
 end
