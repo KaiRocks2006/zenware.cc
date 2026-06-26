@@ -11,7 +11,16 @@ local PlaceIds = {
     [115209351507608] = "TheArmory"
 }
 
+local Window = Library:CreateWindow({
+    Title = 'zenware.cc',
+    Center = true,
+    AutoShow = true,
+    TabPadding = 8,
+    MenuFadeTime = 0.2
+})
+
 local Context = {
+    Window = Window,
     Library = Library,
     Players = Players,
     Workspace = Workspace,
@@ -21,14 +30,6 @@ local Context = {
 
 local DetectedGame = ""
 DetectedGame = PlaceIds[game.PlaceId] or "universal"
-
-Context.Window = Library:CreateWindow({
-    Title = 'zenware.cc - ' .. DetectedGame,
-    Center = true,
-    AutoShow = true,
-    TabPadding = 8,
-    MenuFadeTime = 0.2
-})
 
 local Module = loadstring(game:HttpGet(Repo .. DetectedGame .. ".lua"))()
 Module.Load(Context)
