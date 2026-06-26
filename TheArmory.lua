@@ -36,42 +36,58 @@ local function RemoveHighlights(ps)
 	ps.Highlights = {}
 end
 
--- Helper function to create or update highlights for a player
-local function UpdateHighlights(ps, color, enabled)
-	if not ps then return end
+-- Helper function to create a highlight on a character
+local function CreateHighlight(character, color)
+	if not character then return nil end
 	
-	-- Remove existing highlights if disabled or no character
-	if not enabled or not ps.Character then
-		RemoveHighlights(ps)
-		return
-	end
+	local highlight = Instance.new("Highlight")
+	highlight.Parent = character
+	highlight.Adornee = character
+	highlight.FillColor = color
+	highlight.FillTransparency = 0.5
+	highlight.OutlineColor = color
+	highlight.OutlineTransparency = 0
+	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 	
-	-- Initialize highlights table if needed
-	if not ps.Highlights then
-		ps.Highlights = {}
-	end
+	-- Set visibility based on current settings
+	local masterEnabled = this.Values.Visuals.Player.Master
+	local chamsEnabled = this.Values.Visuals.Player.Chams.Enabled
+	highlight.Enabled = masterEnabled and chamsEnabled
 	
-	-- Check if highlight already exists
-	local highlight = ps.Highlights.Main
-	if not highlight or highlight.Parent ~= ps.Character then
-		-- Remove old highlight if it exists
+	return highlight
+end
+
+-- Helper function to update highlight colors
+local function UpdateHighlightColor(highlight, color)
+	if not highlight then return end
+	highlight.FillColor = color
+	highlight.OutlineColor = color
+end
+
+-- Helper function to update highlight visibility for all players
+local function UpdateAllHighlights()
+	local masterEnabled = this.Values.Visuals.Player.Master
+	local chamsEnabled = this.Values.Visuals.Player.Chams.Enabled
+	local shouldRender = masterEnabled and chamsEnabled
+	local color = this.Values.Visuals.Player.Chams.Color
+	
+	for _, ps in pairs(this.PlayerList) do
+		local highlight = ps.Highlights and ps.Highlights.Main
 		if highlight then
-			highlight:Destroy()
+			highlight.Enabled = shouldRender
+			if shouldRender then
+				UpdateHighlightColor(highlight, color)
+			end
+		elseif shouldRender and ps.Character then
+			-- Create highlight if it doesn't exist and should render
+			local newHighlight = CreateHighlight(ps.Character, color)
+			if newHighlight then
+				if not ps.Highlights then
+					ps.Highlights = {}
+				end
+				ps.Highlights.Main = newHighlight
+			end
 		end
-		-- Create new highlight as child of character
-		highlight = Instance.new("Highlight")
-		highlight.Parent = ps.Character
-		highlight.Adornee = ps.Character
-		highlight.FillColor = color
-		highlight.FillTransparency = 0.5
-		highlight.OutlineColor = color
-		highlight.OutlineTransparency = 0
-		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-		ps.Highlights.Main = highlight
-	else
-		-- Update existing highlight
-		highlight.FillColor = color
-		highlight.OutlineColor = color
 	end
 end
 
@@ -102,12 +118,7 @@ function this.Load(Context)
 		Tooltip = 'Master switch for player ESP',
 		Callback = function(Value) 
 			this.Values.Visuals.Player.Master = Value
-			-- Update highlights when master is toggled
-			if not Value then
-				for _, ps in pairs(this.PlayerList) do
-					RemoveHighlights(ps)
-				end
-			end
+			UpdateAllHighlights()
 		end
 	})
 
@@ -117,11 +128,7 @@ function this.Load(Context)
 		Tooltip = 'Toggles chams using Highlights',
 		Callback = function(Value) 
 			this.Values.Visuals.Player.Chams.Enabled = Value
-			if not Value then
-				for _, ps in pairs(this.PlayerList) do
-					RemoveHighlights(ps)
-				end
-			end
+			UpdateAllHighlights()
 		end
 	})
 
@@ -131,6 +138,7 @@ function this.Load(Context)
 		Transparency = 0,
 		Callback = function(Value)
 			this.Values.Visuals.Player.Chams.Color = Value
+			UpdateAllHighlights()
 		end
 	})
 
@@ -151,7 +159,17 @@ function this.StartThreads()
 	Zenware.Logic = task.spawn(function()
 		for _, v in Players:GetPlayers() do
 			CreatePlayerEntry(v)
-			this.PlayerList[v.UserId].Character = v.Character
+			local char = v.Character
+			if char then
+				this.PlayerList[v.UserId].Character = char
+				-- Create highlight for existing character if enabled
+				if this.Values.Visuals.Player.Master and this.Values.Visuals.Player.Chams.Enabled then
+					local highlight = CreateHighlight(char, this.Values.Visuals.Player.Chams.Color)
+					if highlight then
+						this.PlayerList[v.UserId].Highlights.Main = highlight
+					end
+				end
+			end
 		end
 
 		Players.PlayerAdded:Connect(function(player)
@@ -160,6 +178,17 @@ function this.StartThreads()
 			player.CharacterAdded:Connect(function(char)
 				if this.PlayerList[player.UserId] then
 					this.PlayerList[player.UserId].Character = char
+					
+					-- Automatically create highlight for new character if enabled
+					if this.Values.Visuals.Player.Master and this.Values.Visuals.Player.Chams.Enabled then
+						local highlight = CreateHighlight(char, this.Values.Visuals.Player.Chams.Color)
+						if highlight then
+							if not this.PlayerList[player.UserId].Highlights then
+								this.PlayerList[player.UserId].Highlights = {}
+							end
+							this.PlayerList[player.UserId].Highlights.Main = highlight
+						end
+					end
 				end
 			end)
 		end)
@@ -175,23 +204,12 @@ function this.StartThreads()
 		end)
 	end)
 
+	-- No need for RenderStepped anymore since we handle everything in events
+	-- But keep it as a backup to ensure highlights are updated
 	Zenware.Render = RunService.RenderStepped:Connect(function()
-		local masterEnabled = this.Values.Visuals.Player.Master
-		local chamsEnabled = this.Values.Visuals.Player.Chams.Enabled
-		local color = this.Values.Visuals.Player.Chams.Color
-		
-		-- Check if toggles are enabled
-		local shouldRender = masterEnabled and chamsEnabled
-		
-		for _, ps in pairs(this.PlayerList) do
-			if shouldRender then
-				-- Update highlights for this player
-				UpdateHighlights(ps, color, true)
-			else
-				-- Remove highlights if toggles are disabled
-				RemoveHighlights(ps)
-			end
-		end
+		-- UpdateAllHighlights is called from events, but we can still call it here
+		-- for safety in case something was missed
+		UpdateAllHighlights()
 	end)
 end
 
