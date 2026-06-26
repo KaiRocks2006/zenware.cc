@@ -2,7 +2,7 @@ local this = {}
 
 function this.Load(Context)
 	local Tabs = {
-		Main = Context.Window:AddTab('Visuals'),
+		Main = Context.Window:AddTab('Main'),
 		Visuals = Context.Window:AddTab('Visuals'),
 	}
 
