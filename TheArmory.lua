@@ -121,7 +121,6 @@ local function CreateFOVCircle()
 	circle.Filled = false
 	circle.NumSides = 64
 	
-	-- Position the circle at the center of the screen
 	local camera = Workspace.CurrentCamera
 	if camera then
 		local viewportSize = camera.ViewportSize
@@ -148,7 +147,6 @@ local function UpdateFOVCircle()
 	circle.Visible = true
 	circle.Radius = this.Values.Aim.FOV or 100
 	
-	-- Update position to center of screen
 	local camera = Workspace.CurrentCamera
 	if camera then
 		local viewportSize = camera.ViewportSize
@@ -300,16 +298,13 @@ local function DoAimbot()
 	-- Apply smoothing if enabled
 	local smoothness = this.Values.Aim.Smoothness or 0.3
 	if smoothness < 1 then
-		-- Calculate the difference and apply smoothing
 		local diffX = targetX - currentMousePos.X
 		local diffY = targetY - currentMousePos.Y
 		
-		-- Apply smoothing factor
 		targetX = currentMousePos.X + (diffX * smoothness)
 		targetY = currentMousePos.Y + (diffY * smoothness)
 	end
 	
-	-- Move the mouse to the target position
 	mousemoveabs(targetX, targetY)
 end
 
@@ -322,7 +317,6 @@ local function SetupSilentAim()
 			return originalGetMouseLocation(self)
 		end
 		
-		-- Only apply silent aim when aim key is held
 		if not this.AimKeyDown then
 			return originalGetMouseLocation(self)
 		end
@@ -332,7 +326,6 @@ local function SetupSilentAim()
 			return originalGetMouseLocation(self)
 		end
 		
-		-- Return the target's screen position
 		return Vector2.new(targetScreenPos.X, targetScreenPos.Y)
 	end
 end
@@ -345,16 +338,10 @@ local function SetupAimKey()
 		local aimKey = this.Values.Aim.AimKey
 		local keyPressed = false
 		
-		-- Check if the input matches our aim key
+		-- Check if the input matches our aim key (handle both UserInputType and KeyCode)
 		if input.UserInputType == Enum.UserInputType[aimKey] then
 			keyPressed = true
 		elseif input.KeyCode == Enum.KeyCode[aimKey] then
-			keyPressed = true
-		elseif input.UserInputType == Enum.UserInputType.MouseButton1 and aimKey == "MouseButton1" then
-			keyPressed = true
-		elseif input.UserInputType == Enum.UserInputType.MouseButton2 and aimKey == "MouseButton2" then
-			keyPressed = true
-		elseif input.UserInputType == Enum.UserInputType.MouseButton3 and aimKey == "MouseButton3" then
 			keyPressed = true
 		end
 		
@@ -372,12 +359,6 @@ local function SetupAimKey()
 		if input.UserInputType == Enum.UserInputType[aimKey] then
 			keyReleased = true
 		elseif input.KeyCode == Enum.KeyCode[aimKey] then
-			keyReleased = true
-		elseif input.UserInputType == Enum.UserInputType.MouseButton1 and aimKey == "MouseButton1" then
-			keyReleased = true
-		elseif input.UserInputType == Enum.UserInputType.MouseButton2 and aimKey == "MouseButton2" then
-			keyReleased = true
-		elseif input.UserInputType == Enum.UserInputType.MouseButton3 and aimKey == "MouseButton3" then
 			keyReleased = true
 		end
 		
@@ -625,14 +606,12 @@ function this.StartThreads()
 	Zenware.Render = RunService.RenderStepped:Connect(function()
 		UpdateAllHighlights()
 		
-		-- Update FOV circle position and visibility
 		if this.Values.Aim.DrawFOV then
 			UpdateFOVCircle()
 		elseif this.FOVCircle then
 			this.FOVCircle.Visible = false
 		end
 		
-		-- Run aimbot
 		DoAimbot()
 	end)
 end
