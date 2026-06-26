@@ -1,4 +1,5 @@
-local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/Stratxgy/PepsiUI/refs/heads/main/pepsi.lua'))()
+local BaseUrl = "https://raw.githubusercontent.com/KaiRocks2006/zenware.cc/refs/heads/main/"
+local Library = loadstring(game:HttpGet(BaseUrl .. 'Pepsi.lua'))()
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -34,7 +35,7 @@ local Context = {
     ["HttpService"] = HttpService,
 }
 
-local BaseUrl = "https://raw.githubusercontent.com/KaiRocks2006/zenware.cc/refs/heads/main/"
+
 local DetectedGame = ""
 DetectedGame = PlaceIds[game.PlaceId] or "universal"
 
