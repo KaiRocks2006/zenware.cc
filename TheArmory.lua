@@ -4,7 +4,6 @@ function this.Load(Context)
 	local Tabs = {
 		Main = Context.Window:AddTab('Visuals'),
 		Visuals = Context.Window:AddTab('Visuals'),
-		['UI Settings'] = Context.Window:AddTab('UI Settings'),
 	}
 
 	local Sections = {
