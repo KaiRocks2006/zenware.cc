@@ -26,7 +26,7 @@ this.Values = {
 
 this.PlayerList = {}
 
--- Helper function to get character parts for R6
+-- Helper function to get character parts for R6 with debug
 local function GetCharacterParts(Character)
 	if not Character then return nil end
 	
@@ -34,19 +34,22 @@ local function GetCharacterParts(Character)
 	
 	-- R6 uses these part names directly
 	parts.Head = Character:FindFirstChild("Head")
-	parts.Torso = Character:FindFirstChild("Torso") -- R6 uses just "Torso"
+	parts.Torso = Character:FindFirstChild("Torso")
 	parts.LeftArm = Character:FindFirstChild("LeftArm")
 	parts.RightArm = Character:FindFirstChild("RightArm")
 	parts.LeftLeg = Character:FindFirstChild("LeftLeg")
 	parts.RightLeg = Character:FindFirstChild("RightLeg")
 	
-	-- These don't exist in R6, but keep for compatibility
-	parts.UpperTorso = parts.Torso
-	parts.LowerTorso = nil
-	parts.LeftForearm = nil
-	parts.RightForearm = nil
-	parts.LeftLowerLeg = nil
-	parts.RightLowerLeg = nil
+	-- Debug: Print what parts were found
+	--[[
+	print(string.format("Character %s parts found:", Character.Name))
+	print(string.format("  Head: %s", parts.Head and "Yes" or "No"))
+	print(string.format("  Torso: %s", parts.Torso and "Yes" or "No"))
+	print(string.format("  LeftArm: %s", parts.LeftArm and "Yes" or "No"))
+	print(string.format("  RightArm: %s", parts.RightArm and "Yes" or "No"))
+	print(string.format("  LeftLeg: %s", parts.LeftLeg and "Yes" or "No"))
+	print(string.format("  RightLeg: %s", parts.RightLeg and "Yes" or "No"))
+	--]]
 	
 	return parts
 end
@@ -86,7 +89,6 @@ function this.Load(Context)
 		Tooltip = 'Master switch for player ESP',
 		Callback = function(Value) 
 			this.Values.Visuals.Player.Master = Value
-			-- Hide all bones when master is disabled
 			if not Value then
 				for _, ps in pairs(this.PlayerList) do
 					HideAllBones(ps)
@@ -101,7 +103,6 @@ function this.Load(Context)
 		Tooltip = 'Toggles skeleton ESP',
 		Callback = function(Value) 
 			this.Values.Visuals.Player.Skeleton.Enabled = Value
-			-- Hide all bones when skeleton is disabled
 			if not Value then
 				for _, ps in pairs(this.PlayerList) do
 					HideAllBones(ps)
@@ -132,7 +133,6 @@ local function CreatePlayerEntry(player)
 			Box = Drawing.new("Square"),
 			Tracer = Drawing.new("Line"),
 			Bones = {
-				-- R6 skeleton connections
 				HeadToTorso = Drawing.new("Line"),
 				TorsoToLArm = Drawing.new("Line"),
 				TorsoToRArm = Drawing.new("Line"),
@@ -181,7 +181,6 @@ function this.StartThreads()
 	end)
 
 	Zenware.Render = RunService.RenderStepped:Connect(function()
-		-- Check if toggles are enabled, if not hide all bones and return
 		if not this.Values.Visuals.Player.Master or not this.Values.Visuals.Player.Skeleton.Enabled then
 			for _, ps in pairs(this.PlayerList) do
 				HideAllBones(ps)
@@ -206,7 +205,6 @@ function this.StartThreads()
 
 			local parts = GetCharacterParts(char)
 			
-			-- Check if we have the minimum required parts for R6
 			if not parts.Head or not parts.Torso then
 				HideAllBones(ps)
 				continue
@@ -218,15 +216,31 @@ function this.StartThreads()
 				return Vector2.new(pos.X, pos.Y), onScreen
 			end
 
-			-- Get all part positions for R6
 			local headPos, headOnScreen = WorldToScreen(parts.Head)
 			local torsoPos, torsoOnScreen = WorldToScreen(parts.Torso)
-			local lArmPos, lArmOnScreen = WorldToScreen(parts.LeftArm)
-			local rArmPos, rArmOnScreen = WorldToScreen(parts.RightArm)
-			local lLegPos, lLegOnScreen = WorldToScreen(parts.LeftLeg)
-			local rLegPos, rLegOnScreen = WorldToScreen(parts.RightLeg)
+			
+			-- Handle limbs that might be nil
+			local lArmPos, lArmOnScreen = false, false
+			local rArmPos, rArmOnScreen = false, false
+			local lLegPos, lLegOnScreen = false, false
+			local rLegPos, rLegOnScreen = false, false
+			
+			if parts.LeftArm then
+				lArmPos, lArmOnScreen = WorldToScreen(parts.LeftArm)
+			end
+			
+			if parts.RightArm then
+				rArmPos, rArmOnScreen = WorldToScreen(parts.RightArm)
+			end
+			
+			if parts.LeftLeg then
+				lLegPos, lLegOnScreen = WorldToScreen(parts.LeftLeg)
+			end
+			
+			if parts.RightLeg then
+				rLegPos, rLegOnScreen = WorldToScreen(parts.RightLeg)
+			end
 
-			-- Hide all bones if torso isn't on screen
 			if not torsoOnScreen or not torsoPos then
 				HideAllBones(ps)
 				continue
@@ -236,7 +250,6 @@ function this.StartThreads()
 			local cfg = this.Values.Visuals.Player.Skeleton
 			local thickness = cfg.Thickness or 1
 
-			-- Helper function to update a bone line
 			local function UpdateBone(line, from, to, visible)
 				if not line then return end
 				if visible and from and to then
@@ -250,12 +263,21 @@ function this.StartThreads()
 				end
 			end
 
-			-- Update all bone connections for R6
-			UpdateBone(bones.HeadToTorso, headPos, torsoPos, headOnScreen and headPos ~= nil)
+			-- Update all bone connections
+			UpdateBone(bones.HeadToTorso, headPos, torsoPos, headOnScreen)
 			UpdateBone(bones.TorsoToLArm, torsoPos, lArmPos, lArmOnScreen and lArmPos ~= nil)
 			UpdateBone(bones.TorsoToRArm, torsoPos, rArmPos, rArmOnScreen and rArmPos ~= nil)
 			UpdateBone(bones.TorsoToLLeg, torsoPos, lLegPos, lLegOnScreen and lLegPos ~= nil)
 			UpdateBone(bones.TorsoToRLeg, torsoPos, rLegPos, rLegOnScreen and rLegPos ~= nil)
+			
+			-- Debug: Check if limb lines are being set
+			--[[
+			if lArmPos then
+				print(string.format("Left Arm visible: %s, Position: %s", lArmOnScreen, tostring(lArmPos)))
+			else
+				print("Left Arm not found!")
+			end
+			--]]
 		end
 	end)
 end
