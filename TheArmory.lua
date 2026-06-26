@@ -82,23 +82,24 @@ local function UpdateHighlights(ps, color, enabled)
 		if part then
 			-- Check if highlight already exists for this part
 			local highlight = ps.Highlights[name]
-			if not highlight or highlight.Parent ~= part then
+			if not highlight or highlight.Parent ~= ps.Character then
 				-- Remove old highlight if it exists
 				if highlight then
 					highlight:Destroy()
 				end
-				-- Create new highlight
+				-- Create new highlight as child of character
 				highlight = Instance.new("Highlight")
-				highlight.Parent = part
+				highlight.Parent = ps.Character
 				highlight.Adornee = part
 				highlight.FillColor = color
 				highlight.FillTransparency = 0.5
 				highlight.OutlineColor = color
 				highlight.OutlineTransparency = 0
-				highlight.AlwaysOnTop = true
+				highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 				ps.Highlights[name] = highlight
 			else
-				-- Update existing highlight color
+				-- Update existing highlight
+				highlight.Adornee = part
 				highlight.FillColor = color
 				highlight.OutlineColor = color
 			end
