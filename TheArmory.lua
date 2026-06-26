@@ -6,6 +6,9 @@ this.Interactables = this.Workspace:WaitForChild("Interactible", 5)
 this.Crates = this.Workspace:WaitForChild("SpawnedCrates", 5)
 this.Items = this.Workspace:WaitForChild("SpawnedItems", 5)
 this.Entities = this.Workspace:WaitForChild("Entities", 5)
+-- Player characters are mapped as this.Entities[PlayerObjectName]
+-- Enemy NPCs are named "Enemy" as a child of Entities
+-- TargetDummys are the same as Enemy NPCs, but named TargetDummy
 
 function this.IsCrateLoaded(Crate)
 	return Crate:FindFirstChild("Root") and true or false
@@ -49,6 +52,18 @@ function this.GetCrateRarity(Crate)
 end
 
 this.Vars = {
+	Aim = {
+		Enabled = false,
+		FOV = 150,
+		Smoothness = 0.1,
+		TeamCheck = true,
+		VisibleCheck = true,
+		DrawFOV = true,
+		FOVColor = Color3.fromRGB(255, 255, 255),
+		TargetPlayers = true,
+		TargetNPCs = true,
+		ActivationKey = Enum.KeyCode.E,
+	},
 	ESP = {
 		Extraction = {
 			Color = Color3.new(0, 1, 0),
@@ -124,6 +139,107 @@ function this.Initialize()
 	this.Tabs.Aim.Tab     = W:CreateTab({ Name = "Aim" })
 	this.Tabs.Visuals.Tab = W:CreateTab({ Name = "Visuals" })
 	this.Tabs.Player.Tab  = W:CreateTab({ Name = "Player" })
+
+	this.Tabs.Aim.Sections = {
+		Main = this.Tabs.Aim.Tab:CreateSection({
+			Name = "Aimbot",
+			Side = "Left"
+		}),
+
+		Targeting = this.Tabs.Aim.Tab:CreateSection({
+			Name = "Targeting",
+			Side = "Right"
+		}),
+	}
+
+	this.Tabs.Aim.Values = {
+		Main = {
+			Enabled = this.Tabs.Aim.Sections.Main:AddToggle({
+				Name = "Enable Aimbot",
+				Callback = function(v)
+					this.Vars.Aim.Enabled = v
+				end
+			}),
+
+			Keybind = this.Tabs.Aim.Sections.Main:AddKeybind({
+				Name = "Aim Key",
+				Value = this.Vars.Aim.ActivationKey,
+				Callback = function(new)
+					this.Vars.Aim.ActivationKey = new
+				end
+			}),
+
+			DrawFOV = this.Tabs.Aim.Sections.Main:AddToggle({
+				Name = "Draw FOV Circle",
+				Value = true,
+				Callback = function(v)
+					this.Vars.Aim.DrawFOV = v
+				end
+			}),
+
+			FOV = this.Tabs.Aim.Sections.Main:AddSlider({
+				Name = "FOV",
+				Min = 25,
+				Max = 500,
+				Value = this.Vars.Aim.FOV,
+				Callback = function(v)
+					this.Vars.Aim.FOV = v
+				end
+			}),
+
+			Smoothness = this.Tabs.Aim.Sections.Main:AddSlider({
+				Name = "Smoothness",
+				Min = 0,
+				Max = 100,
+				Value = 10,
+				Callback = function(v)
+					this.Vars.Aim.Smoothness = v / 100
+				end
+			}),
+
+			FOVColor = this.Tabs.Aim.Sections.Main:AddColorpicker({
+				Name = "FOV Color",
+				Value = this.Vars.Aim.FOVColor,
+				Callback = function(new)
+					this.Vars.Aim.FOVColor = new
+				end
+			}),
+		},
+
+		Targeting = {
+			TeamCheck = this.Tabs.Aim.Sections.Targeting:AddToggle({
+				Name = "Team Check",
+				Value = true,
+				Callback = function(v)
+					this.Vars.Aim.TeamCheck = v
+				end
+			}),
+
+			VisibleCheck = this.Tabs.Aim.Sections.Targeting:AddToggle({
+				Name = "Visible Check",
+				Value = true,
+				Callback = function(v)
+					this.Vars.Aim.VisibleCheck = v
+				end
+			}),
+
+			TargetPlayers = this.Tabs.Aim.Sections.Targeting:AddToggle({
+				Name = "Target Players",
+				Value = true,
+				Callback = function(v)
+					this.Vars.Aim.TargetPlayers = v
+				end
+			}),
+
+			TargetNPCs = this.Tabs.Aim.Sections.Targeting:AddToggle({
+				Name = "Target NPCs",
+				Value = true,
+				Callback = function(v)
+					this.Vars.Aim.TargetNPCs = v
+				end
+			}),
+		}
+	}
 
 	this.Tabs.Visuals.Sections = {
 		Player = this.Tabs.Visuals.Tab:CreateSection({ Name = "Player", Side = "Left"  }),
