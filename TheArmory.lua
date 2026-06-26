@@ -1,11 +1,21 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local this = {}
 
 this.Values = {
-	Aim = {},
+	Aim = {
+		Enabled = false,
+		Silent = false,
+		Smoothness = 0.3,
+		FOV = 100,
+		TargetPart = "Head",
+		VisibleCheck = true,
+		TeamCheck = false,
+	},
 	Visuals = {
 		Player = {
 			Master = false,
@@ -24,6 +34,8 @@ this.Values = {
 }
 
 this.PlayerList = {}
+this.AimbotTarget = nil
+this.SilentAimActive = false
 
 -- Helper function to remove highlights from a player
 local function RemoveHighlights(ps)
@@ -49,7 +61,6 @@ local function CreateHighlight(character, color)
 	highlight.OutlineTransparency = 0
 	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 	
-	-- Set visibility based on current settings
 	local masterEnabled = this.Values.Visuals.Player.Master
 	local chamsEnabled = this.Values.Visuals.Player.Chams.Enabled
 	highlight.Enabled = masterEnabled and chamsEnabled
@@ -79,7 +90,6 @@ local function UpdateAllHighlights()
 				UpdateHighlightColor(highlight, color)
 			end
 		elseif shouldRender and ps.Character then
-			-- Create highlight if it doesn't exist and should render
 			local newHighlight = CreateHighlight(ps.Character, color)
 			if newHighlight then
 				if not ps.Highlights then
@@ -91,6 +101,227 @@ local function UpdateAllHighlights()
 	end
 end
 
+-- Aimbot functions
+local function IsValidTarget(player)
+	if not player then return false end
+	if player == Players.LocalPlayer then return false end
+	
+	local character = player.Character
+	if not character then return false end
+	
+	local humanoid = character:FindFirstChild("Humanoid")
+	if not humanoid or humanoid.Health <= 0 then return false end
+	
+	-- Team check
+	if this.Values.Aim.TeamCheck then
+		local localPlayer = Players.LocalPlayer
+		if localPlayer.Team and player.Team == localPlayer.Team then
+			return false
+		end
+	end
+	
+	return true
+end
+
+local function GetTargetPart(character)
+	local partName = this.Values.Aim.TargetPart
+	local part = character:FindFirstChild(partName)
+	
+	-- Fallback to Head if target part doesn't exist
+	if not part then
+		part = character:FindFirstChild("Head")
+	end
+	
+	-- Fallback to HumanoidRootPart
+	if not part then
+		part = character:FindFirstChild("HumanoidRootPart")
+	end
+	
+	return part
+end
+
+local function IsVisible(part)
+	if not part then return false end
+	
+	local origin = Workspace.CurrentCamera.CFrame.Position
+	local direction = (part.Position - origin).Unit * (part.Position - origin).Magnitude
+	
+	local raycastParams = RaycastParams.new()
+	raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+	raycastParams.FilterDescendantsInstances = {Players.LocalPlayer.Character}
+	
+	local result = Workspace:Raycast(origin, direction, raycastParams)
+	
+	if not result then return true end
+	
+	-- Check if the hit part is part of the target character
+	local targetCharacter = part.Parent
+	if targetCharacter and result.Instance:IsDescendantOf(targetCharacter) then
+		return true
+	end
+	
+	return false
+end
+
+local function GetClosestPlayer()
+	local localPlayer = Players.LocalPlayer
+	local camera = Workspace.CurrentCamera
+	if not camera then return nil end
+	
+	local closestPlayer = nil
+	local closestDistance = this.Values.Aim.FOV or 999
+	
+	local mousePosition = UserInputService:GetMouseLocation()
+	local screenCenter = Vector2.new(mousePosition.X, mousePosition.Y)
+	
+	for _, player in pairs(Players:GetPlayers()) do
+		if not IsValidTarget(player) then continue end
+		
+		local character = player.Character
+		if not character then continue end
+		
+		local targetPart = GetTargetPart(character)
+		if not targetPart then continue end
+		
+		-- Visibility check
+		if this.Values.Aim.VisibleCheck and not IsVisible(targetPart) then
+			continue
+		end
+		
+		local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+		if not onScreen then continue end
+		
+		local screenPos2D = Vector2.new(screenPos.X, screenPos.Y)
+		local distance = (screenPos2D - screenCenter).Magnitude
+		
+		if distance < closestDistance then
+			closestDistance = distance
+			closestPlayer = player
+		end
+	end
+	
+	return closestPlayer
+end
+
+local function SmoothAim(targetCFrame)
+	local camera = Workspace.CurrentCamera
+	if not camera then return end
+	
+	local currentCFrame = camera.CFrame
+	local targetPosition = targetCFrame.Position
+	
+	local targetAngles = CFrame.lookAt(currentCFrame.Position, targetPosition)
+	
+	local smoothness = this.Values.Aim.Smoothness or 0.3
+	local lerpedCFrame = currentCFrame:Lerp(targetAngles, smoothness)
+	
+	camera.CFrame = lerpedCFrame
+end
+
+-- Silent aim function
+local function GetSilentAimTarget()
+	local target = GetClosestPlayer()
+	if not target then return nil end
+	
+	local character = target.Character
+	if not character then return nil end
+	
+	local targetPart = GetTargetPart(character)
+	if not targetPart then return nil end
+	
+	-- Check if target is on screen
+	local camera = Workspace.CurrentCamera
+	local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+	if not onScreen then return nil end
+	
+	return targetPart
+end
+
+-- Hook into mouse movement for silent aim
+local function SetupSilentAim()
+	-- Store original mouse functions
+	local originalGetMouseLocation = UserInputService.GetMouseLocation
+	
+	-- Override GetMouseLocation for silent aim
+	UserInputService.GetMouseLocation = function(self)
+		if not this.Values.Aim.Enabled or not this.Values.Aim.Silent then
+			return originalGetMouseLocation(self)
+		end
+		
+		local targetPart = GetSilentAimTarget()
+		if not targetPart then
+			return originalGetMouseLocation(self)
+		end
+		
+		local camera = Workspace.CurrentCamera
+		if not camera then
+			return originalGetMouseLocation(self)
+		end
+		
+		-- Get the target's screen position
+		local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+		if not onScreen then
+			return originalGetMouseLocation(self)
+		end
+		
+		-- Return the target's screen position as the mouse location
+		return Vector2.new(screenPos.X, screenPos.Y)
+	end
+end
+
+-- Alternative silent aim using ViewportPointToRay
+local function GetSilentAimRay()
+	local targetPart = GetSilentAimTarget()
+	if not targetPart then return nil end
+	
+	local camera = Workspace.CurrentCamera
+	if not camera then return nil end
+	
+	-- Get the target's screen position
+	local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+	if not onScreen then return nil end
+	
+	-- Create a ray from the camera through the target's screen position
+	local ray = camera:ViewportPointToRay(screenPos.X, screenPos.Y, 0)
+	return ray
+end
+
+local function UpdateAimbot()
+	if not this.Values.Aim.Enabled then
+		this.AimbotTarget = nil
+		return
+	end
+	
+	-- If silent aim is enabled, don't move the camera
+	if this.Values.Aim.Silent then
+		this.AimbotTarget = GetClosestPlayer()
+		return
+	end
+	
+	local target = GetClosestPlayer()
+	if not target then
+		this.AimbotTarget = nil
+		return
+	end
+	
+	this.AimbotTarget = target
+	
+	local character = target.Character
+	if not character then return end
+	
+	local targetPart = GetTargetPart(character)
+	if not targetPart then return end
+	
+	-- Check if target is still on screen
+	local camera = Workspace.CurrentCamera
+	local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+	if not onScreen then return end
+	
+	-- Aim at the target
+	local targetCFrame = CFrame.lookAt(camera.CFrame.Position, targetPart.Position)
+	SmoothAim(targetCFrame)
+end
+
 function this.Load(Context)
 	local Tabs = {
 		Aim = Context.Window:AddTab('Aim'),
@@ -98,7 +329,14 @@ function this.Load(Context)
 	}
 
 	local Sections = {
-		Aim = {},
+		Aim = {
+			Main = {
+				GroupBox = Tabs.Aim:AddLeftGroupbox('Main'),
+			},
+			Settings = {
+				GroupBox = Tabs.Aim:AddRightGroupbox('Settings'),
+			},
+		},
 		Visuals = {
 			Player = {
 				GroupBox = Tabs.Visuals:AddLeftGroupbox('Player'),
@@ -112,6 +350,7 @@ function this.Load(Context)
 		},
 	}
 
+	-- Visuals
 	Sections.Visuals.Player.MasterSwitch = Sections.Visuals.Player.GroupBox:AddToggle('MasterSwitch', {
 		Text = 'Master',
 		Default = false,
@@ -142,6 +381,83 @@ function this.Load(Context)
 		end
 	})
 
+	-- Aimbot
+	Sections.Aim.Main.AimbotToggle = Sections.Aim.Main.GroupBox:AddToggle('AimbotToggle', {
+		Text = 'Aimbot',
+		Default = false,
+		Tooltip = 'Toggles aimbot',
+		Callback = function(Value)
+			this.Values.Aim.Enabled = Value
+			if not Value then
+				this.AimbotTarget = nil
+			end
+		end
+	})
+
+	Sections.Aim.Main.SilentAimToggle = Sections.Aim.Main.GroupBox:AddToggle('SilentAimToggle', {
+		Text = 'Silent Aim',
+		Default = false,
+		Tooltip = 'Aim without moving the camera (mouse movement only)',
+		Callback = function(Value)
+			this.Values.Aim.Silent = Value
+			if Value then
+				SetupSilentAim()
+			else
+				-- Restore original GetMouseLocation
+				UserInputService.GetMouseLocation = nil
+			end
+		end
+	})
+
+	Sections.Aim.Settings.SmoothnessSlider = Sections.Aim.Settings.GroupBox:AddSlider('Smoothness', {
+		Text = 'Smoothness',
+		Default = 0.3,
+		Min = 0.05,
+		Max = 1,
+		Rounding = 2,
+		Callback = function(Value)
+			this.Values.Aim.Smoothness = Value
+		end
+	})
+
+	Sections.Aim.Settings.FOVSlider = Sections.Aim.Settings.GroupBox:AddSlider('FOV', {
+		Text = 'FOV',
+		Default = 100,
+		Min = 10,
+		Max = 500,
+		Rounding = 0,
+		Callback = function(Value)
+			this.Values.Aim.FOV = Value
+		end
+	})
+
+	Sections.Aim.Settings.TargetPartDropdown = Sections.Aim.Settings.GroupBox:AddDropdown('TargetPart', {
+		Text = 'Target Part',
+		Default = 'Head',
+		Options = {'Head', 'Torso', 'HumanoidRootPart'},
+		Callback = function(Value)
+			this.Values.Aim.TargetPart = Value
+		end
+	})
+
+	Sections.Aim.Settings.VisibleCheckToggle = Sections.Aim.Settings.GroupBox:AddToggle('VisibleCheck', {
+		Text = 'Visible Check',
+		Default = true,
+		Tooltip = 'Only target visible players',
+		Callback = function(Value)
+			this.Values.Aim.VisibleCheck = Value
+		end
+	})
+
+	Sections.Aim.Settings.TeamCheckToggle = Sections.Aim.Settings.GroupBox:AddToggle('TeamCheck', {
+		Text = 'Team Check',
+		Default = false,
+		Tooltip = 'Don\'t target teammates',
+		Callback = function(Value)
+			this.Values.Aim.TeamCheck = Value
+		end
+	})
+
 	this.StartThreads()
 end
 
@@ -162,7 +478,6 @@ function this.StartThreads()
 			local char = v.Character
 			if char then
 				this.PlayerList[v.UserId].Character = char
-				-- Create highlight for existing character if enabled
 				if this.Values.Visuals.Player.Master and this.Values.Visuals.Player.Chams.Enabled then
 					local highlight = CreateHighlight(char, this.Values.Visuals.Player.Chams.Color)
 					if highlight then
@@ -179,7 +494,6 @@ function this.StartThreads()
 				if this.PlayerList[player.UserId] then
 					this.PlayerList[player.UserId].Character = char
 					
-					-- Automatically create highlight for new character if enabled
 					if this.Values.Visuals.Player.Master and this.Values.Visuals.Player.Chams.Enabled then
 						local highlight = CreateHighlight(char, this.Values.Visuals.Player.Chams.Color)
 						if highlight then
@@ -197,19 +511,23 @@ function this.StartThreads()
 			local data = this.PlayerList[player.UserId]
 			if not data then return end
 
-			-- Remove all highlights
 			RemoveHighlights(data)
+			
+			if this.AimbotTarget == player then
+				this.AimbotTarget = nil
+			end
 			
 			this.PlayerList[player.UserId] = nil
 		end)
 	end)
 
-	-- No need for RenderStepped anymore since we handle everything in events
-	-- But keep it as a backup to ensure highlights are updated
 	Zenware.Render = RunService.RenderStepped:Connect(function()
-		-- UpdateAllHighlights is called from events, but we can still call it here
-		-- for safety in case something was missed
 		UpdateAllHighlights()
+		
+		-- Update aimbot
+		if this.Values.Aim.Enabled then
+			UpdateAimbot()
+		end
 	end)
 end
 
@@ -221,6 +539,10 @@ function this.Unload()
 	end
 
 	table.clear(this.PlayerList)
+	this.AimbotTarget = nil
+	
+	-- Restore original GetMouseLocation
+	UserInputService.GetMouseLocation = nil
 end
 
 return this
