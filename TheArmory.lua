@@ -9,7 +9,7 @@ this.Values = {
 	Aim = {
 		Enabled = false,
 		Silent = false,
-		AimKey = "MouseButton2", -- Default to right mouse button
+		AimKey = "MouseButton2",
 		Smoothness = 0.3,
 		FOV = 100,
 		TargetPart = "Head",
@@ -198,22 +198,7 @@ local function GetClosestPlayer()
 	return closestPlayer
 end
 
-local function SmoothAim(targetCFrame)
-	local camera = Workspace.CurrentCamera
-	if not camera then return end
-	
-	local currentCFrame = camera.CFrame
-	local targetPosition = targetCFrame.Position
-	
-	local targetAngles = CFrame.lookAt(currentCFrame.Position, targetPosition)
-	
-	local smoothness = this.Values.Aim.Smoothness or 0.3
-	local lerpedCFrame = currentCFrame:Lerp(targetAngles, smoothness)
-	
-	camera.CFrame = lerpedCFrame
-end
-
-local function GetSilentAimTarget()
+local function GetTargetScreenPosition()
 	local target = GetClosestPlayer()
 	if not target then return nil end
 	
@@ -224,12 +209,56 @@ local function GetSilentAimTarget()
 	if not targetPart then return nil end
 	
 	local camera = Workspace.CurrentCamera
+	if not camera then return nil end
+	
 	local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
 	if not onScreen then return nil end
 	
-	return targetPart
+	return Vector2.new(screenPos.X, screenPos.Y), target
 end
 
+-- Main aimbot function using mousemoveabs
+local function DoAimbot()
+	if not this.Values.Aim.Enabled then
+		this.AimbotTarget = nil
+		return
+	end
+	
+	-- Only aim when the aim key is held down
+	if not this.AimKeyDown then
+		return
+	end
+	
+	local targetScreenPos, target = GetTargetScreenPosition()
+	if not targetScreenPos or not target then
+		this.AimbotTarget = nil
+		return
+	end
+	
+	this.AimbotTarget = target
+	
+	-- Get current mouse position
+	local currentMousePos = UserInputService:GetMouseLocation()
+	local targetX = targetScreenPos.X
+	local targetY = targetScreenPos.Y
+	
+	-- Apply smoothing if enabled
+	local smoothness = this.Values.Aim.Smoothness or 0.3
+	if smoothness < 1 then
+		-- Calculate the difference and apply smoothing
+		local diffX = targetX - currentMousePos.X
+		local diffY = targetY - currentMousePos.Y
+		
+		-- Apply smoothing factor
+		targetX = currentMousePos.X + (diffX * smoothness)
+		targetY = currentMousePos.Y + (diffY * smoothness)
+	end
+	
+	-- Move the mouse to the target position
+	mousemoveabs(targetX, targetY)
+end
+
+-- Silent aim (overrides mouse location)
 local function SetupSilentAim()
 	local originalGetMouseLocation = UserInputService.GetMouseLocation
 	
@@ -243,61 +272,14 @@ local function SetupSilentAim()
 			return originalGetMouseLocation(self)
 		end
 		
-		local targetPart = GetSilentAimTarget()
-		if not targetPart then
+		local targetScreenPos, _ = GetTargetScreenPosition()
+		if not targetScreenPos then
 			return originalGetMouseLocation(self)
 		end
 		
-		local camera = Workspace.CurrentCamera
-		if not camera then
-			return originalGetMouseLocation(self)
-		end
-		
-		local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
-		if not onScreen then
-			return originalGetMouseLocation(self)
-		end
-		
-		return Vector2.new(screenPos.X, screenPos.Y)
+		-- Return the target's screen position
+		return Vector2.new(targetScreenPos.X, targetScreenPos.Y)
 	end
-end
-
-local function UpdateAimbot()
-	if not this.Values.Aim.Enabled then
-		this.AimbotTarget = nil
-		return
-	end
-	
-	-- Only aim when the aim key is held down
-	if not this.AimKeyDown then
-		return
-	end
-	
-	if this.Values.Aim.Silent then
-		this.AimbotTarget = GetClosestPlayer()
-		return
-	end
-	
-	local target = GetClosestPlayer()
-	if not target then
-		this.AimbotTarget = nil
-		return
-	end
-	
-	this.AimbotTarget = target
-	
-	local character = target.Character
-	if not character then return end
-	
-	local targetPart = GetTargetPart(character)
-	if not targetPart then return end
-	
-	local camera = Workspace.CurrentCamera
-	local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
-	if not onScreen then return end
-	
-	local targetCFrame = CFrame.lookAt(camera.CFrame.Position, targetPart.Position)
-	SmoothAim(targetCFrame)
 end
 
 -- Setup input handling for aim key
@@ -306,7 +288,22 @@ local function SetupAimKey()
 		if gameProcessed then return end
 		
 		local aimKey = this.Values.Aim.AimKey
-		if input.UserInputType == Enum.UserInputType[aimKey] or input.KeyCode == Enum.KeyCode[aimKey] then
+		local keyPressed = false
+		
+		-- Check if the input matches our aim key
+		if input.UserInputType == Enum.UserInputType[aimKey] then
+			keyPressed = true
+		elseif input.KeyCode == Enum.KeyCode[aimKey] then
+			keyPressed = true
+		elseif input.UserInputType == Enum.UserInputType.MouseButton1 and aimKey == "MouseButton1" then
+			keyPressed = true
+		elseif input.UserInputType == Enum.UserInputType.MouseButton2 and aimKey == "MouseButton2" then
+			keyPressed = true
+		elseif input.UserInputType == Enum.UserInputType.MouseButton3 and aimKey == "MouseButton3" then
+			keyPressed = true
+		end
+		
+		if keyPressed then
 			this.AimKeyDown = true
 		end
 	end)
@@ -315,7 +312,21 @@ local function SetupAimKey()
 		if gameProcessed then return end
 		
 		local aimKey = this.Values.Aim.AimKey
-		if input.UserInputType == Enum.UserInputType[aimKey] or input.KeyCode == Enum.KeyCode[aimKey] then
+		local keyReleased = false
+		
+		if input.UserInputType == Enum.UserInputType[aimKey] then
+			keyReleased = true
+		elseif input.KeyCode == Enum.KeyCode[aimKey] then
+			keyReleased = true
+		elseif input.UserInputType == Enum.UserInputType.MouseButton1 and aimKey == "MouseButton1" then
+			keyReleased = true
+		elseif input.UserInputType == Enum.UserInputType.MouseButton2 and aimKey == "MouseButton2" then
+			keyReleased = true
+		elseif input.UserInputType == Enum.UserInputType.MouseButton3 and aimKey == "MouseButton3" then
+			keyReleased = true
+		end
+		
+		if keyReleased then
 			this.AimKeyDown = false
 			this.AimbotTarget = nil
 		end
@@ -398,7 +409,7 @@ function this.Load(Context)
 	Sections.Aim.Main.SilentAimToggle = Sections.Aim.Main.GroupBox:AddToggle('SilentAimToggle', {
 		Text = 'Silent Aim',
 		Default = false,
-		Tooltip = 'Aim without moving the camera',
+		Tooltip = 'Aim without moving the camera (mouse movement only)',
 		Callback = function(Value)
 			this.Values.Aim.Silent = Value
 			if Value then
@@ -544,9 +555,8 @@ function this.StartThreads()
 	Zenware.Render = RunService.RenderStepped:Connect(function()
 		UpdateAllHighlights()
 		
-		if this.Values.Aim.Enabled then
-			UpdateAimbot()
-		end
+		-- Run aimbot
+		DoAimbot()
 	end)
 end
 
