@@ -20,9 +20,9 @@ function this.Load(Context)
 	Library = Context.Library
 
 	Tabs.Visuals = Window:AddTab('Visuals')
-	Sections.Visuals.Player = Sections.Visuals:AddGroupbox('Player')
-	Sections.Visuals.NPC = Sections.Visuals:AddGroupbox('NPC')
-	Sections.Visuals.World = Sections.Visuals:AddGroupbox('World')
+	Sections.Visuals.Player = Tabs.Visuals:AddGroupbox('Player')
+	Sections.Visuals.NPC = Tabs.Visuals:AddGroupbox('NPC')
+	Sections.Visuals.World = Tabs.Visuals:AddGroupbox('World')
 end
 
 return this
