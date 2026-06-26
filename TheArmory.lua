@@ -41,10 +41,10 @@ function this.Load(Context)
 	----------------------------------------------------------------
 
 	Groupboxes.Player.Main =
-		SubTabs.Visuals.Player:AddLeftGroupbox('Player ESP')
+		SubTabs.Visuals.Player:AddGroupbox('Player ESP')
 
 	Groupboxes.Player.Flags =
-		SubTabs.Visuals.Player:AddRightGroupbox('Flags')
+		SubTabs.Visuals.Player:AddGroupbox('Flags')
 
 	Groupboxes.Player.Main:AddToggle('PlayerESP', {
 		Text = 'Enable',
@@ -91,7 +91,7 @@ function this.Load(Context)
 	----------------------------------------------------------------
 
 	Groupboxes.NPC.Main =
-		SubTabs.Visuals.NPC:AddLeftGroupbox('NPC ESP')
+		SubTabs.Visuals.NPC:AddGroupbox('NPC ESP')
 
 	Groupboxes.NPC.Main:AddToggle('NPCESP', {
 		Text = 'Enable',
@@ -123,10 +123,10 @@ function this.Load(Context)
 	----------------------------------------------------------------
 
 	Groupboxes.World.Main =
-		SubTabs.Visuals.World:AddLeftGroupbox('World ESP')
+		SubTabs.Visuals.World:AddGroupbox('World ESP')
 
 	Groupboxes.World.Crates =
-		SubTabs.Visuals.World:AddRightGroupbox('Crates')
+		SubTabs.Visuals.World:AddGroupbox('Crates')
 
 	Groupboxes.World.Main:AddToggle('ExtractionESP', {
 		Text = 'Extraction ESP',
