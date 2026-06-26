@@ -26,26 +26,27 @@ this.Values = {
 
 this.PlayerList = {}
 
--- Helper function to get character parts with both modern and legacy naming
+-- Helper function to get character parts for R6
 local function GetCharacterParts(Character)
 	if not Character then return nil end
 	
 	local parts = {}
 	
-	-- Try modern naming first
+	-- R6 uses these part names directly
 	parts.Head = Character:FindFirstChild("Head")
-	parts.UpperTorso = Character:FindFirstChild("UpperTorso") or Character:FindFirstChild("Torso")
-	parts.LowerTorso = Character:FindFirstChild("LowerTorso") or Character:FindFirstChild("Torso")
-	parts.LeftArm = Character:FindFirstChild("LeftUpperArm") or Character:FindFirstChild("LeftArm")
-	parts.RightArm = Character:FindFirstChild("RightUpperArm") or Character:FindFirstChild("RightArm")
-	parts.LeftLeg = Character:FindFirstChild("LeftUpperLeg") or Character:FindFirstChild("LeftLeg")
-	parts.RightLeg = Character:FindFirstChild("RightUpperLeg") or Character:FindFirstChild("RightLeg")
+	parts.Torso = Character:FindFirstChild("Torso") -- R6 uses just "Torso"
+	parts.LeftArm = Character:FindFirstChild("LeftArm")
+	parts.RightArm = Character:FindFirstChild("RightArm")
+	parts.LeftLeg = Character:FindFirstChild("LeftLeg")
+	parts.RightLeg = Character:FindFirstChild("RightLeg")
 	
-	-- Additional limb parts for more detailed skeleton
-	parts.LeftForearm = Character:FindFirstChild("LeftLowerArm")
-	parts.RightForearm = Character:FindFirstChild("RightLowerArm")
-	parts.LeftLowerLeg = Character:FindFirstChild("LeftLowerLeg")
-	parts.RightLowerLeg = Character:FindFirstChild("RightLowerLeg")
+	-- These don't exist in R6, but keep for compatibility
+	parts.UpperTorso = parts.Torso
+	parts.LowerTorso = nil
+	parts.LeftForearm = nil
+	parts.RightForearm = nil
+	parts.LeftLowerLeg = nil
+	parts.RightLowerLeg = nil
 	
 	return parts
 end
@@ -107,18 +108,12 @@ local function CreatePlayerEntry(player)
 			Box = Drawing.new("Square"),
 			Tracer = Drawing.new("Line"),
 			Bones = {
-				-- Main skeleton connections
+				-- R6 skeleton connections
 				HeadToTorso = Drawing.new("Line"),
 				TorsoToLArm = Drawing.new("Line"),
 				TorsoToRArm = Drawing.new("Line"),
 				TorsoToLLeg = Drawing.new("Line"),
 				TorsoToRLeg = Drawing.new("Line"),
-				-- Additional connections for better skeleton
-				TorsoToLowerTorso = Drawing.new("Line"),
-				LArmToLForearm = Drawing.new("Line"),
-				RArmToRForearm = Drawing.new("Line"),
-				LLegToLLowerLeg = Drawing.new("Line"),
-				RLegToRLowerLeg = Drawing.new("Line"),
 			},
 			Texts = {},
 		}
@@ -174,8 +169,8 @@ function this.StartThreads()
 
 			local parts = GetCharacterParts(char)
 			
-			-- Check if we have the minimum required parts
-			if not parts.Head or not parts.UpperTorso then
+			-- Check if we have the minimum required parts for R6
+			if not parts.Head or not parts.Torso then
 				-- Hide all bones if character isn't fully loaded
 				for _, bone in pairs(ps.Drawings.Bones) do
 					bone.Visible = false
@@ -189,18 +184,13 @@ function this.StartThreads()
 				return Vector2.new(pos.X, pos.Y), onScreen
 			end
 
-			-- Get all part positions
+			-- Get all part positions for R6
 			local headPos, headOnScreen = WorldToScreen(parts.Head)
-			local torsoPos, torsoOnScreen = WorldToScreen(parts.UpperTorso)
-			local lowerTorsoPos = parts.LowerTorso and WorldToScreen(parts.LowerTorso) or nil
-			local lArmPos = parts.LeftArm and WorldToScreen(parts.LeftArm) or nil
-			local rArmPos = parts.RightArm and WorldToScreen(parts.RightArm) or nil
-			local lLegPos = parts.LeftLeg and WorldToScreen(parts.LeftLeg) or nil
-			local rLegPos = parts.RightLeg and WorldToScreen(parts.RightLeg) or nil
-			local lForearmPos = parts.LeftForearm and WorldToScreen(parts.LeftForearm) or nil
-			local rForearmPos = parts.RightForearm and WorldToScreen(parts.RightForearm) or nil
-			local lLowerLegPos = parts.LeftLowerLeg and WorldToScreen(parts.LeftLowerLeg) or nil
-			local rLowerLegPos = parts.RightLowerLeg and WorldToScreen(parts.RightLowerLeg) or nil
+			local torsoPos, torsoOnScreen = WorldToScreen(parts.Torso)
+			local lArmPos, lArmOnScreen = WorldToScreen(parts.LeftArm)
+			local rArmPos, rArmOnScreen = WorldToScreen(parts.RightArm)
+			local lLegPos, lLegOnScreen = WorldToScreen(parts.LeftLeg)
+			local rLegPos, rLegOnScreen = WorldToScreen(parts.RightLeg)
 
 			-- Hide all bones if torso isn't on screen
 			if not torsoOnScreen or not torsoPos then
@@ -228,43 +218,21 @@ function this.StartThreads()
 				end
 			end
 
-			-- Update all bone connections
+			-- Debug: Print which parts are found
+			-- print(string.format("Parts found - Head: %s, Torso: %s, LArm: %s, RArm: %s, LLeg: %s, RLeg: %s", 
+			-- 	parts.Head and "Yes" or "No",
+			-- 	parts.Torso and "Yes" or "No",
+			-- 	parts.LeftArm and "Yes" or "No",
+			-- 	parts.RightArm and "Yes" or "No",
+			-- 	parts.LeftLeg and "Yes" or "No",
+			-- 	parts.RightLeg and "Yes" or "No"))
+
+			-- Update all bone connections for R6
 			UpdateBone(bones.HeadToTorso, headPos, torsoPos, headOnScreen and headPos ~= nil)
-			UpdateBone(bones.TorsoToLArm, torsoPos, lArmPos, lArmPos ~= nil)
-			UpdateBone(bones.TorsoToRArm, torsoPos, rArmPos, rArmPos ~= nil)
-			UpdateBone(bones.TorsoToLLeg, torsoPos, lLegPos, lLegPos ~= nil)
-			UpdateBone(bones.TorsoToRLeg, torsoPos, rLegPos, rLegPos ~= nil)
-			
-			-- Update additional bones if they exist
-			if lowerTorsoPos then
-				UpdateBone(bones.TorsoToLowerTorso, torsoPos, lowerTorsoPos, true)
-			else
-				bones.TorsoToLowerTorso.Visible = false
-			end
-			
-			if lForearmPos then
-				UpdateBone(bones.LArmToLForearm, lArmPos, lForearmPos, lArmPos ~= nil)
-			else
-				bones.LArmToLForearm.Visible = false
-			end
-			
-			if rForearmPos then
-				UpdateBone(bones.RArmToRForearm, rArmPos, rForearmPos, rArmPos ~= nil)
-			else
-				bones.RArmToRForearm.Visible = false
-			end
-			
-			if lLowerLegPos then
-				UpdateBone(bones.LLegToLLowerLeg, lLegPos, lLowerLegPos, lLegPos ~= nil)
-			else
-				bones.LLegToLLowerLeg.Visible = false
-			end
-			
-			if rLowerLegPos then
-				UpdateBone(bones.RLegToRLowerLeg, rLegPos, rLowerLegPos, rLegPos ~= nil)
-			else
-				bones.RLegToRLowerLeg.Visible = false
-			end
+			UpdateBone(bones.TorsoToLArm, torsoPos, lArmPos, lArmOnScreen and lArmPos ~= nil)
+			UpdateBone(bones.TorsoToRArm, torsoPos, rArmPos, rArmOnScreen and rArmPos ~= nil)
+			UpdateBone(bones.TorsoToLLeg, torsoPos, lLegPos, lLegOnScreen and lLegPos ~= nil)
+			UpdateBone(bones.TorsoToRLeg, torsoPos, rLegPos, rLegOnScreen and rLegPos ~= nil)
 		end
 	end)
 end
