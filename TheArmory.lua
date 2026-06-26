@@ -269,23 +269,6 @@ local function SetupSilentAim()
 	end
 end
 
--- Alternative silent aim using ViewportPointToRay
-local function GetSilentAimRay()
-	local targetPart = GetSilentAimTarget()
-	if not targetPart then return nil end
-	
-	local camera = Workspace.CurrentCamera
-	if not camera then return nil end
-	
-	-- Get the target's screen position
-	local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
-	if not onScreen then return nil end
-	
-	-- Create a ray from the camera through the target's screen position
-	local ray = camera:ViewportPointToRay(screenPos.X, screenPos.Y, 0)
-	return ray
-end
-
 local function UpdateAimbot()
 	if not this.Values.Aim.Enabled then
 		this.AimbotTarget = nil
@@ -433,8 +416,8 @@ function this.Load(Context)
 
 	Sections.Aim.Settings.TargetPartDropdown = Sections.Aim.Settings.GroupBox:AddDropdown('TargetPart', {
 		Text = 'Target Part',
+		Values = {'Head', 'Torso', 'HumanoidRootPart'},
 		Default = 'Head',
-		Options = {'Head', 'Torso', 'HumanoidRootPart'},
 		Callback = function(Value)
 			this.Values.Aim.TargetPart = Value
 		end
